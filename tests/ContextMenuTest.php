@@ -48,11 +48,12 @@ it('registers wrapped actions as context-only table actions', function (): void 
         ]);
 
     $attributes = $table->getExtraAttributes();
-    $payload = json_decode(base64_decode($attributes['data-filament-right-click-config']), associative: true);
+    $payload = json_decode(base64_decode($attributes['data-filament-right-click-record-config']), associative: true);
 
     expect($table->hasAction('archive'))->toBeTrue();
     expect($table->getRecordActions())->toBeEmpty();
     expect($attributes['class'])->toContain('fi-right-click-table');
+    expect($attributes['data-filament-right-click-config'])->toBe($attributes['data-filament-right-click-record-config']);
     expect($attributes['data-filament-right-click-script-src'])->toContain('filament-right-click.js');
     expect($attributes['data-filament-right-click-style-href'])->toContain('filament-right-click.css');
     expect($attributes['x-init']->toHtml())->toContain('FilamentRightClick');
@@ -64,29 +65,52 @@ it('registers bulk actions as context-only table bulk actions', function (): voi
 
     $table = Table::make(new FakeTableComponent)
         ->columns([])
-        ->contextMenuActions([
-            ContextMenuItem::for(BulkAction::make('archiveSelected'))->label('Archive selected'),
+        ->contextMenuBulkActions([
+            BulkAction::make('archiveSelected')->label('Archive selected'),
         ]);
 
     $attributes = $table->getExtraAttributes();
-    $payload = json_decode(base64_decode($attributes['data-filament-right-click-config']), associative: true);
+    $payload = json_decode(base64_decode($attributes['data-filament-right-click-bulk-config']), associative: true);
 
     expect($table->hasBulkAction('archiveSelected'))->toBeTrue();
     expect($table->hasAction('archiveSelected'))->toBeFalse();
     expect($table->getRecordActions())->toBeEmpty();
+    expect($payload['target'])->toBe('bulk');
     expect($payload['items'][0]['action'])->toBe('archiveSelected');
     expect($payload['items'][0]['target'])->toBe('bulk');
+    expect($payload['items'][0]['label'])->toBe('Archive selected');
 });
 
-it('wraps raw bulk actions as bulk menu items', function (): void {
-    $entries = RegisterMacros::normalizeEntries([
+it('wraps raw bulk actions as bulk menu items for the bulk macro', function (): void {
+    $entries = RegisterMacros::normalizeBulkEntries([
         BulkAction::make('deleteSelected'),
     ]);
 
-    $payload = json_decode(base64_decode(RegisterMacros::encodeConfig($entries)), associative: true);
+    $payload = json_decode(base64_decode(RegisterMacros::encodeConfig($entries, target: 'bulk')), associative: true);
 
+    expect($payload['target'])->toBe('bulk');
     expect($payload['items'][0]['action'])->toBe('deleteSelected');
     expect($payload['items'][0]['target'])->toBe('bulk');
+});
+
+it('rejects bulk actions in record context menus', function (): void {
+    FilamentRightClickPlugin::make()->register(Panel::make());
+
+    expect(fn () => Table::make(new FakeTableComponent)
+        ->columns([])
+        ->contextMenuActions([
+            BulkAction::make('deleteSelected'),
+        ]))->toThrow(InvalidArgumentException::class, 'Use contextMenuBulkActions()');
+});
+
+it('rejects record actions in bulk context menus', function (): void {
+    FilamentRightClickPlugin::make()->register(Panel::make());
+
+    expect(fn () => Table::make(new FakeTableComponent)
+        ->columns([])
+        ->contextMenuBulkActions([
+            Action::make('edit'),
+        ]))->toThrow(InvalidArgumentException::class, 'only accepts Filament BulkAction');
 });
 
 it('can explicitly target a bulk action', function (): void {

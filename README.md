@@ -22,7 +22,7 @@ $panel
 
 ## Usage
 
-Use `contextMenuActions()` on a Filament table:
+Use `contextMenuActions()` for single-record row menu items and `contextMenuBulkActions()` for selected-record menu items:
 
 ```php
 use Filament\Actions\Action;
@@ -54,26 +54,27 @@ public static function table(Table $table): Table
 
             ContextMenuSeparator::make(),
 
-            ContextMenuItem::forBulkAction(
-                BulkAction::make('archiveSelected')
-                    ->requiresConfirmation()
-                    ->action(fn ($records) => $records->each->archive()),
-            )
-                ->label('Archive selected')
-                ->icon(Heroicon::ArchiveBox)
-                ->color('warning'),
-
             ContextMenuItem::for(DeleteAction::make())
                 ->label('Delete')
                 ->icon(Heroicon::Trash)
                 ->color('danger'),
+        ])
+        ->contextMenuBulkActions([
+            ContextMenuItem::forBulkAction(
+                BulkAction::make('archiveSelected')
+                    ->label('Archive Selected')
+                    ->requiresConfirmation()
+                    ->action(fn ($records) => $records->each->archive()),
+            )
+                ->icon(Heroicon::ArchiveBox)
+                ->color('warning'),
         ]);
 }
 ```
 
 The wrapped actions are registered as table actions, but they are not rendered in the normal row action column. On click, the package calls Filament's table action mounting path for the row record key.
 
-Bulk actions are registered as table bulk actions without rendering in the normal bulk action dropdown. When the right-clicked row is already selected, bulk menu items use the current Filament selection, including select-all-across-pages state. When the right-clicked row is not selected, the bulk item runs against that row only.
+Bulk actions are registered as table bulk actions without rendering in the normal bulk action dropdown. When the right-clicked row is already selected, the bulk menu uses the current Filament selection, including select-all-across-pages state. When the right-clicked row is not selected, the single-record menu opens instead.
 
 ## Behavior
 
@@ -91,30 +92,32 @@ If a right-click item points to an action that is hidden, disabled, or unauthori
 
 ## Asset loading
 
-Assets are registered as `loadedOnRequest()` and are requested only by tables that use `contextMenuActions()`.
+Assets are registered as `loadedOnRequest()` and are requested only by tables that use `contextMenuActions()` or `contextMenuBulkActions()`.
 
 If you publish or bundle assets in your own build pipeline, keep the DOM contract intact:
 
-- table root: `data-filament-right-click-config`
+- table root record menu: `data-filament-right-click-record-config`
+- table root bulk menu: `data-filament-right-click-bulk-config`
+- legacy table root record menu: `data-filament-right-click-config`
 - row key source: Filament's native row `wire:key`
 - record action call: `mountTableAction(actionName, recordKey)`
 - bulk action call: synchronize Filament's selected table record properties, then mount the bulk action
 
 ## Bulk actions
 
-Use `ContextMenuItem::forBulkAction()` or pass a `BulkAction` directly:
+Use `contextMenuBulkActions()` with `ContextMenuItem::forBulkAction()` or pass a `BulkAction` directly:
 
 ```php
 use Filament\Actions\BulkAction;
 use Leek\FilamentRightClick\Menu\ContextMenuItem;
 
-$table->contextMenuActions([
+$table->contextMenuBulkActions([
     ContextMenuItem::forBulkAction(
         BulkAction::make('deleteSelected')
+            ->label('Delete Selected')
             ->requiresConfirmation()
             ->action(fn ($records) => $records->each->delete()),
     )
-        ->label('Delete selected')
         ->color('danger'),
 ]);
 ```

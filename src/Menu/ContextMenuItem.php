@@ -11,6 +11,7 @@ use Filament\Support\Enums\IconSize;
 use Filament\Support\View\ComponentAttributeBag;
 use Illuminate\Contracts\Support\Htmlable;
 use Leek\FilamentRightClick\Contracts\ContextMenuEntry;
+use Throwable;
 
 use function Filament\Support\generate_icon_html;
 
@@ -124,6 +125,19 @@ class ContextMenuItem implements ContextMenuEntry
     {
         if (filled($this->label)) {
             return $this->label;
+        }
+
+        try {
+            $label = $this->action->getLabel();
+
+            if ($label instanceof Htmlable) {
+                $label = trim(strip_tags($label->toHtml()));
+            }
+
+            if (is_string($label) && filled($label)) {
+                return $label;
+            }
+        } catch (Throwable) {
         }
 
         return (string) str($this->action->getName())->headline();

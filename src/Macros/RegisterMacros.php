@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Leek\FilamentRightClick\Macros;
 
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\Tables\Table;
 use Illuminate\Support\HtmlString;
@@ -25,20 +26,25 @@ class RegisterMacros
 
         Table::macro('contextMenuActions', function (array $entries): Table {
             /** @var Table $this */
-            $entries = RegisterMacros::normalizeEntries($entries);
+            $entries = RegisterMacros::normalizeRecordEntries($entries);
 
-            foreach (RegisterMacros::getActions($entries) as $action) {
-                $action->table($this);
-                $this->cacheAction($action);
-            }
+            RegisterMacros::registerEntries($this, $entries);
 
-            return $this->extraAttributes([
-                'class' => 'fi-right-click-table',
+            return RegisterMacros::applyContextMenuAttributes($this, [
                 'data-filament-right-click-config' => RegisterMacros::encodeConfig($entries),
-                'data-filament-right-click-script-src' => FilamentAsset::getScriptSrc('filament-right-click', 'leek/filament-right-click'),
-                'data-filament-right-click-style-href' => RegisterMacros::getStyleHref(),
-                'x-init' => RegisterMacros::assetLoaderExpression(),
-            ], merge: true);
+                'data-filament-right-click-record-config' => RegisterMacros::encodeConfig($entries),
+            ]);
+        });
+
+        Table::macro('contextMenuBulkActions', function (array $entries): Table {
+            /** @var Table $this */
+            $entries = RegisterMacros::normalizeBulkEntries($entries);
+
+            RegisterMacros::registerEntries($this, $entries);
+
+            return RegisterMacros::applyContextMenuAttributes($this, [
+                'data-filament-right-click-bulk-config' => RegisterMacros::encodeConfig($entries, target: 'bulk'),
+            ]);
         });
 
         static::$registered = true;
@@ -64,6 +70,34 @@ class RegisterMacros
     }
 
     /**
+     * @param  array<ContextMenuEntry|Action>  $entries
+     * @return array<ContextMenuEntry>
+     */
+    public static function normalizeRecordEntries(array $entries): array
+    {
+        $entries = static::normalizeEntries($entries);
+
+        static::assertEntriesUseTarget($entries, 'record', 'contextMenuActions() only accepts record actions. Use contextMenuBulkActions() for BulkAction instances.');
+        static::assertEntriesUseActionType($entries, Action::class, 'contextMenuActions() only accepts record actions. Use contextMenuBulkActions() for BulkAction instances.', rejectBulkActions: true);
+
+        return $entries;
+    }
+
+    /**
+     * @param  array<ContextMenuEntry|Action>  $entries
+     * @return array<ContextMenuEntry>
+     */
+    public static function normalizeBulkEntries(array $entries): array
+    {
+        $entries = static::normalizeEntries($entries);
+
+        static::assertEntriesUseTarget($entries, 'bulk', 'contextMenuBulkActions() only accepts Filament BulkAction instances.');
+        static::assertEntriesUseActionType($entries, BulkAction::class, 'contextMenuBulkActions() only accepts Filament BulkAction instances.');
+
+        return $entries;
+    }
+
+    /**
      * @param  array<ContextMenuEntry>  $entries
      * @return array<Action>
      */
@@ -77,12 +111,12 @@ class RegisterMacros
     /**
      * @param  array<ContextMenuEntry>  $entries
      */
-    public static function encodeConfig(array $entries): string
+    public static function encodeConfig(array $entries, string $target = 'record'): string
     {
         try {
             $json = json_encode([
                 'version' => 1,
-                'target' => 'record',
+                'target' => $target,
                 'items' => array_map(
                     fn (ContextMenuEntry $entry): array => $entry->toPayload(),
                     $entries,
@@ -93,6 +127,80 @@ class RegisterMacros
         }
 
         return base64_encode($json);
+    }
+
+    /**
+     * @param  array<ContextMenuEntry>  $entries
+     */
+    public static function registerEntries(Table $table, array $entries): void
+    {
+        (function (array $actions): void {
+            foreach ($actions as $action) {
+                $action->table($this);
+                $this->cacheAction($action);
+            }
+        })->call($table, static::getActions($entries));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function applyContextMenuAttributes(Table $table, array $attributes): Table
+    {
+        return $table->extraAttributes([
+            'class' => 'fi-right-click-table',
+            'data-filament-right-click-script-src' => FilamentAsset::getScriptSrc('filament-right-click', 'leek/filament-right-click'),
+            'data-filament-right-click-style-href' => static::getStyleHref(),
+            'x-init' => static::assetLoaderExpression(),
+            ...$attributes,
+        ], merge: true);
+    }
+
+    /**
+     * @param  array<ContextMenuEntry>  $entries
+     */
+    protected static function assertEntriesUseTarget(array $entries, string $target, string $message): void
+    {
+        foreach ($entries as $entry) {
+            static::assertPayloadUsesTarget($entry->toPayload(), $target, $message);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected static function assertPayloadUsesTarget(array $payload, string $target, string $message): void
+    {
+        if (($payload['type'] ?? null) === 'item' && (($payload['target'] ?? 'record') !== $target)) {
+            throw new InvalidArgumentException($message);
+        }
+
+        if (($payload['type'] ?? null) !== 'section') {
+            return;
+        }
+
+        foreach ($payload['items'] ?? [] as $item) {
+            if (is_array($item)) {
+                static::assertPayloadUsesTarget($item, $target, $message);
+            }
+        }
+    }
+
+    /**
+     * @param  array<ContextMenuEntry>  $entries
+     * @param  class-string<Action>  $actionClass
+     */
+    protected static function assertEntriesUseActionType(array $entries, string $actionClass, string $message, bool $rejectBulkActions = false): void
+    {
+        foreach (static::getActions($entries) as $action) {
+            if ($rejectBulkActions && $action instanceof BulkAction) {
+                throw new InvalidArgumentException($message);
+            }
+
+            if (! $action instanceof $actionClass) {
+                throw new InvalidArgumentException($message);
+            }
+        }
     }
 
     public static function assetLoaderExpression(): HtmlString

@@ -22,6 +22,7 @@ it('registers assets and table macros when the panel plugin registers', function
     FilamentRightClickPlugin::make()->register(Panel::make());
 
     expect(Table::hasMacro('contextMenuActions'))->toBeTrue();
+    expect(Table::hasMacro('contextMenuBulkActions'))->toBeTrue();
     expect(FilamentAsset::getScriptSrc('filament-right-click', 'leek/filament-right-click'))->not->toBeEmpty();
 
     $scripts = collect(FilamentAsset::getScripts(['leek/filament-right-click']))

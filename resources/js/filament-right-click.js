@@ -14,6 +14,11 @@
     ].join(',');
 
     const recordRowSelector = '.fi-ta-record, .fi-ta-row';
+    const configuredTableSelector = [
+        '[data-filament-right-click-record-config]',
+        '[data-filament-right-click-bulk-config]',
+        '[data-filament-right-click-config]',
+    ].join(',');
 
     const state = {
         activeIndex: -1,
@@ -31,9 +36,9 @@
         ensureMenu();
         bindListeners();
 
-        const table = root.matches?.('[data-filament-right-click-config]')
+        const table = root.matches?.(configuredTableSelector)
             ? root
-            : root.querySelector?.('[data-filament-right-click-config]');
+            : root.querySelector?.(configuredTableSelector);
 
         if (table) {
             table.dataset.filamentRightClickReady = 'true';
@@ -82,8 +87,8 @@
         }
 
         const table = findEnabledTable(row);
-        const config = table ? getConfig(table) : null;
         const recordKey = parseRecordKey(row);
+        const config = table && recordKey ? resolveConfigForRow(table, recordKey) : null;
 
         if (! table || ! config || ! recordKey || ! hasItems(config.items)) {
             return;
@@ -133,8 +138,8 @@
 
         const row = findRecordRow(event.target) || state.lastRow;
         const table = row ? findEnabledTable(row) : null;
-        const config = table ? getConfig(table) : null;
         const recordKey = row ? parseRecordKey(row) : null;
+        const config = table && recordKey ? resolveConfigForRow(table, recordKey) : null;
 
         if (! row || ! table || ! config || ! recordKey || ! hasItems(config.items)) {
             return;
@@ -211,7 +216,7 @@
     }
 
     function findEnabledTable(element) {
-        return element.closest('[data-filament-right-click-config]');
+        return element.closest(configuredTableSelector);
     }
 
     function isInteractiveTarget(target) {
@@ -244,23 +249,42 @@
         return match?.[1] ?? null;
     }
 
-    function getConfig(table) {
-        const encodedConfig = table.dataset.filamentRightClickConfig;
+    function resolveConfigForRow(table, recordKey) {
+        const bulkConfig = getConfig(table, 'bulk');
+
+        if (bulkConfig && hasItems(bulkConfig.items) && isRecordSelected(table, recordKey)) {
+            return bulkConfig;
+        }
+
+        return getConfig(table, 'record');
+    }
+
+    function getConfig(table, target) {
+        const encodedConfig = target === 'bulk'
+            ? table.dataset.filamentRightClickBulkConfig
+            : (table.dataset.filamentRightClickRecordConfig || table.dataset.filamentRightClickConfig);
 
         if (! encodedConfig) {
             return null;
         }
 
-        if (table._filamentRightClickEncodedConfig === encodedConfig) {
-            return table._filamentRightClickConfig;
+        const encodedCacheKey = target === 'bulk'
+            ? '_filamentRightClickBulkEncodedConfig'
+            : '_filamentRightClickRecordEncodedConfig';
+        const configCacheKey = target === 'bulk'
+            ? '_filamentRightClickBulkConfig'
+            : '_filamentRightClickRecordConfig';
+
+        if (table[encodedCacheKey] === encodedConfig) {
+            return table[configCacheKey];
         }
 
         try {
             const bytes = Uint8Array.from(atob(encodedConfig), character => character.charCodeAt(0));
             const config = JSON.parse(new TextDecoder().decode(bytes));
 
-            table._filamentRightClickEncodedConfig = encodedConfig;
-            table._filamentRightClickConfig = config;
+            table[encodedCacheKey] = encodedConfig;
+            table[configCacheKey] = config;
 
             return config;
         } catch (error) {
@@ -419,6 +443,10 @@
     function triggerBulkAction(wire, table, recordKey, action) {
         const selection = resolveBulkSelection(table, recordKey);
 
+        if (! selection) {
+            return;
+        }
+
         syncBulkSelection(wire, selection);
 
         if (canCallWire(wire, 'mountAction')) {
@@ -462,11 +490,17 @@
             };
         }
 
-        return {
-            isTrackingDeselectedRecords: false,
-            selectedRecords: [recordKey],
-            deselectedRecords: [],
-        };
+        return null;
+    }
+
+    function isRecordSelected(table, recordKey) {
+        const tableState = getTableState(table);
+
+        if (tableState) {
+            return isRecordSelectedInState(tableState, recordKey);
+        }
+
+        return getCheckedRecordKeys(table).includes(recordKey);
     }
 
     function getTableState(table) {
