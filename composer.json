@@ -1,0 +1,67 @@
+{
+    "name": "leek/filament-right-click",
+    "description": "Right-click table row menus for Filament panels that trigger native Filament actions.",
+    "keywords": [
+        "leek",
+        "laravel",
+        "filament",
+        "filamentphp",
+        "tables",
+        "actions",
+        "right-click",
+        "context-menu"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Chris Jones",
+            "email": "leeked@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/leek/filament-right-click/issues",
+        "source": "https://github.com/leek/filament-right-click"
+    },
+    "require": {
+        "php": "^8.2",
+        "filament/filament": "^4.0 || ^5.0",
+        "spatie/laravel-package-tools": "^1.15"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^9.0 || ^10.0 || ^11.0",
+        "pestphp/pest": "^3.0 || ^4.0",
+        "pestphp/pest-plugin-laravel": "^3.0 || ^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Leek\\FilamentRightClick\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Leek\\FilamentRightClick\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": "@php ./vendor/bin/testbench package:discover --ansi",
+        "test": "vendor/bin/pest",
+        "format": "vendor/bin/pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Leek\\FilamentRightClick\\FilamentRightClickServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

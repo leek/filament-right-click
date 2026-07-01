@@ -1,0 +1,129 @@
+.fi-right-click-menu {
+    position: fixed;
+    z-index: 9999;
+    min-width: 12rem;
+    max-width: min(18rem, calc(100vw - 1rem));
+    padding: 0.25rem;
+    border: 1px solid rgb(212 212 216);
+    border-radius: 0.5rem;
+    background: rgb(255 255 255);
+    box-shadow:
+        0 10px 15px -3px rgb(0 0 0 / 0.1),
+        0 4px 6px -4px rgb(0 0 0 / 0.1);
+    color: rgb(39 39 42);
+    outline: none;
+}
+
+.dark .fi-right-click-menu {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+    color: rgb(244 244 245);
+}
+
+.fi-right-click-menu[hidden] {
+    display: none;
+}
+
+.fi-right-click-menu-section + .fi-right-click-menu-section,
+.fi-right-click-menu-section + .fi-right-click-menu-separator,
+.fi-right-click-menu-separator + .fi-right-click-menu-section {
+    margin-top: 0.25rem;
+}
+
+.fi-right-click-menu-section-label {
+    padding: 0.375rem 0.5rem 0.25rem;
+    color: rgb(113 113 122);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1rem;
+    text-transform: uppercase;
+}
+
+.dark .fi-right-click-menu-section-label {
+    color: rgb(161 161 170);
+}
+
+.fi-right-click-menu-separator {
+    height: 1px;
+    margin: 0.25rem;
+    background: rgb(228 228 231);
+}
+
+.dark .fi-right-click-menu-separator {
+    background: rgb(63 63 70);
+}
+
+.fi-right-click-menu-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    border: 0;
+    border-radius: 0.375rem;
+    background: transparent;
+    padding: 0.5rem;
+    color: inherit;
+    font: inherit;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    text-align: left;
+    cursor: default;
+}
+
+.fi-right-click-menu-item:hover,
+.fi-right-click-menu-item:focus {
+    background: rgb(244 244 245);
+    outline: none;
+}
+
+.dark .fi-right-click-menu-item:hover,
+.dark .fi-right-click-menu-item:focus {
+    background: rgb(39 39 42);
+}
+
+.fi-right-click-menu-item-icon-ctn {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    color: rgb(113 113 122);
+}
+
+.dark .fi-right-click-menu-item-icon-ctn {
+    color: rgb(161 161 170);
+}
+
+.fi-right-click-menu-item-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fi-right-click-menu-item.fi-color-danger {
+    color: rgb(185 28 28);
+}
+
+.fi-right-click-menu-item.fi-color-danger .fi-right-click-menu-item-icon-ctn {
+    color: rgb(220 38 38);
+}
+
+.dark .fi-right-click-menu-item.fi-color-danger {
+    color: rgb(248 113 113);
+}
+
+.dark .fi-right-click-menu-item.fi-color-danger .fi-right-click-menu-item-icon-ctn {
+    color: rgb(248 113 113);
+}
+
+.fi-right-click-menu-item.fi-color-warning {
+    color: rgb(161 98 7);
+}
+
+.fi-right-click-menu-item.fi-color-success {
+    color: rgb(21 128 61);
+}
+
+.fi-right-click-menu-item.fi-color-info {
+    color: rgb(3 105 161);
+}

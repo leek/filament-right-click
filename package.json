@@ -1,0 +1,13 @@
+{
+    "name": "filament-right-click",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite build --watch"
+    },
+    "devDependencies": {
+        "esbuild": "^0.28.1",
+        "vite": "^8.1.2"
+    }
+}
