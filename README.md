@@ -1,5 +1,9 @@
 # Filament Right Click
 
+<p align="center">
+    <img src="art/cover.jpg" alt="Filament Right Click cover art">
+</p>
+
 Right-click table row menus for Filament panels.
 
 This package adds a static right-click menu to Filament table records. Menu items trigger native Filament table actions, so action modals, confirmation, authorization, validation, notifications, redirects, and server-side disabled/hidden checks remain owned by Filament.
@@ -75,6 +79,12 @@ public static function table(Table $table): Table
 The wrapped actions are registered as table actions, but they are not rendered in the normal row action column. On click, the package calls Filament's table action mounting path for the row record key.
 
 Bulk actions are registered as table bulk actions without rendering in the normal bulk action dropdown. When the right-clicked row is already selected, the bulk menu uses the current Filament selection, including select-all-across-pages state. When the right-clicked row is not selected, the single-record menu opens instead.
+
+## Screenshot
+
+<p align="center">
+    <img src="art/screenshot.png" alt="Filament Right Click table row context menu screenshot">
+</p>
 
 ## Behavior
 
