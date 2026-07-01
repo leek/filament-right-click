@@ -1,6 +1,5 @@
 ;(function () {
     const interactiveSelector = [
-        'a',
         'button',
         'input',
         'select',
