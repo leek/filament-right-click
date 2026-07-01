@@ -6,6 +6,7 @@ use Leek\FilamentRightClick\FilamentRightClickPlugin;
 use Leek\FilamentRightClick\Macros\RegisterMacros;
 use Livewire\Component;
 use Relaticle\Flowforge\Board;
+use Relaticle\Flowforge\SortableBoard;
 
 function defineFakeFlowforgeBoard(): void
 {
@@ -36,19 +37,35 @@ function defineFakeFlowforgeBoard(): void
             return $this->livewire;
         }
     }
+
+    class SortableBoard extends Board {}
     PHP);
 }
 
 function resetRightClickMacroRegistration(): void
 {
-    $registered = new ReflectionProperty(RegisterMacros::class, 'registered');
-    $registered->setAccessible(true);
-    $registered->setValue(false);
+    $tableMacrosRegistered = new ReflectionProperty(RegisterMacros::class, 'tableMacrosRegistered');
+    $tableMacrosRegistered->setAccessible(true);
+    $tableMacrosRegistered->setValue(false);
+
+    $flowforgeMacrosRegistered = new ReflectionProperty(RegisterMacros::class, 'flowforgeMacrosRegistered');
+    $flowforgeMacrosRegistered->setAccessible(true);
+    $flowforgeMacrosRegistered->setValue(false);
 
     $flowforgeContextMenuAttributes = new ReflectionProperty(RegisterMacros::class, 'flowforgeContextMenuAttributes');
     $flowforgeContextMenuAttributes->setAccessible(true);
     $flowforgeContextMenuAttributes->setValue(null);
 }
+
+it('can retry optional Flowforge macro registration after base macros are already registered', function (): void {
+    resetRightClickMacroRegistration();
+
+    RegisterMacros::register();
+    defineFakeFlowforgeBoard();
+    RegisterMacros::register();
+
+    expect(Board::hasMacro('contextMenuCardActions'))->toBeTrue();
+});
 
 it('registers optional Flowforge card context menu actions', function (): void {
     defineFakeFlowforgeBoard();
@@ -88,4 +105,38 @@ it('registers optional Flowforge card context menu actions', function (): void {
     expect($attributes['x-init']->toHtml())->toContain('FilamentRightClick');
     expect($payload['items'][0]['action'])->toBe('view');
     expect($payload['items'][0]['label'])->toBe('View card');
+});
+
+it('exposes Flowforge card context menu actions on custom Board subclasses', function (): void {
+    defineFakeFlowforgeBoard();
+    resetRightClickMacroRegistration();
+
+    FilamentRightClickPlugin::make()->register(Panel::make());
+
+    $livewire = new class extends Component
+    {
+        /** @var array<int, string> */
+        public array $cachedActionNames = [];
+
+        public function render(): string
+        {
+            return '';
+        }
+
+        protected function cacheAction(Action $action): void
+        {
+            $this->cachedActionNames[] = $action->getName();
+        }
+    };
+
+    $board = SortableBoard::make($livewire)
+        ->contextMenuCardActions([
+            Action::make('move')->label('Move card'),
+        ]);
+
+    $attributes = RegisterMacros::getFlowforgeContextMenuAttributes($board);
+    $payload = json_decode(base64_decode($attributes['data-filament-right-click-flowforge-card-config']), associative: true);
+
+    expect($livewire->cachedActionNames)->toBe(['move']);
+    expect($payload['items'][0]['action'])->toBe('move');
 });

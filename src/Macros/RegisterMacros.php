@@ -17,7 +17,9 @@ use WeakMap;
 
 class RegisterMacros
 {
-    protected static bool $registered = false;
+    protected static bool $tableMacrosRegistered = false;
+
+    protected static bool $flowforgeMacrosRegistered = false;
 
     /**
      * @var WeakMap<object, array<string, mixed>>|null
@@ -26,7 +28,13 @@ class RegisterMacros
 
     public static function register(): void
     {
-        if (static::$registered) {
+        static::registerTableMacros();
+        static::registerFlowforgeMacros();
+    }
+
+    protected static function registerTableMacros(): void
+    {
+        if (static::$tableMacrosRegistered) {
             return;
         }
 
@@ -53,13 +61,15 @@ class RegisterMacros
             ]);
         });
 
-        static::registerFlowforgeMacros();
-
-        static::$registered = true;
+        static::$tableMacrosRegistered = true;
     }
 
     protected static function registerFlowforgeMacros(): void
     {
+        if (static::$flowforgeMacrosRegistered) {
+            return;
+        }
+
         if (! class_exists('Relaticle\\Flowforge\\Board')) {
             return;
         }
@@ -76,6 +86,8 @@ class RegisterMacros
 
             return $this;
         });
+
+        static::$flowforgeMacrosRegistered = true;
     }
 
     /**

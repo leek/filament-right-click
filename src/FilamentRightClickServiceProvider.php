@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leek\FilamentRightClick;
 
+use Leek\FilamentRightClick\Macros\RegisterMacros;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -16,5 +17,10 @@ class FilamentRightClickServiceProvider extends PackageServiceProvider
         $package
             ->name(static::$name)
             ->hasViews();
+    }
+
+    public function packageBooted(): void
+    {
+        RegisterMacros::register();
     }
 }
