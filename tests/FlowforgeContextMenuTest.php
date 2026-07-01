@@ -2,6 +2,9 @@
 
 use Filament\Actions\Action;
 use Filament\Panel;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\View;
+use Illuminate\View\ComponentAttributeBag;
 use Leek\FilamentRightClick\FilamentRightClickPlugin;
 use Leek\FilamentRightClick\Macros\RegisterMacros;
 use Livewire\Component;
@@ -139,4 +142,48 @@ it('exposes Flowforge card context menu actions on custom Board subclasses', fun
 
     expect($livewire->cachedActionNames)->toBe(['move']);
     expect($payload['items'][0]['action'])->toBe('move');
+});
+
+it('wraps the resolved Flowforge board view instead of replacing it', function (): void {
+    defineFakeFlowforgeBoard();
+    resetRightClickMacroRegistration();
+
+    FilamentRightClickPlugin::make()->register(Panel::make());
+
+    $viewsPath = storage_path('framework/testing/flowforge-views');
+
+    File::ensureDirectoryExists($viewsPath);
+    File::put($viewsPath.'/index.blade.php', <<<'BLADE'
+        <section data-custom-flowforge-override>
+            Custom Flowforge Board
+        </section>
+        BLADE);
+
+    View::addNamespace('flowforge', $viewsPath);
+
+    $livewire = new class extends Component
+    {
+        public function render(): string
+        {
+            return '';
+        }
+
+        protected function cacheAction(Action $action): void {}
+    };
+
+    $board = Board::make($livewire)
+        ->contextMenuCardActions([
+            Action::make('view')->label('View card'),
+        ]);
+
+    $html = view($board->getView(), [
+        'attributes' => new ComponentAttributeBag,
+        'board' => $board,
+        'columns' => [],
+        'config' => [],
+    ])->render();
+
+    expect($html)->toContain('data-filament-right-click-flowforge-card-config')
+        ->and($html)->toContain('data-custom-flowforge-override')
+        ->and($html)->toContain('Custom Flowforge Board');
 });
