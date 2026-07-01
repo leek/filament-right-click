@@ -215,7 +215,21 @@
     }
 
     function isInteractiveTarget(target) {
-        return target instanceof Element && Boolean(target.closest(interactiveSelector));
+        if (! (target instanceof Element)) {
+            return false;
+        }
+
+        if (target.closest('[data-filament-right-click-ignore]')) {
+            return true;
+        }
+
+        const interactive = target.closest(interactiveSelector);
+
+        if (! interactive) {
+            return false;
+        }
+
+        return ! interactive.matches('a');
     }
 
     function parseRecordKey(row) {
