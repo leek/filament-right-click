@@ -537,7 +537,19 @@
         const componentId = livewireRoot?.getAttribute('wire:id');
         const component = componentId ? window.Livewire?.find(componentId) : null;
 
-        return component?.$wire || component || null;
+        if (! component) {
+            return null;
+        }
+
+        if (typeof component.call === 'function' || typeof component.$call === 'function') {
+            return component;
+        }
+
+        if (component.$wire && typeof component.$wire !== 'function') {
+            return component.$wire;
+        }
+
+        return component;
     }
 
     function canCallWire(wire, method) {
