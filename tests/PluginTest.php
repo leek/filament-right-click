@@ -37,3 +37,8 @@ it('registers assets and table macros when the panel plugin registers', function
     expect($scripts->get('filament-right-click'))->toBeTrue();
     expect($styles->get('filament-right-click'))->toBeTrue();
 });
+
+it('does not register package views that break view caching', function (): void {
+    $this->artisan('view:cache')
+        ->assertSuccessful();
+});
