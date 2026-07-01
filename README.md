@@ -1,9 +1,5 @@
 # Filament Right Click
 
-<p align="center">
-    <img src="art/cover.jpg" alt="Filament Right Click cover art">
-</p>
-
 Right-click table row and Flowforge card menus for Filament panels.
 
 This package adds a static right-click menu to Filament table records and, when Flowforge is installed, Kanban board cards. Menu items trigger native Filament actions, so action modals, confirmation, authorization, validation, notifications, redirects, and server-side disabled/hidden checks remain owned by Filament.
