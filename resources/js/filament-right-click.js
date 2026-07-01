@@ -13,21 +13,41 @@
         '[data-filament-right-click-ignore]',
     ].join(',');
 
+    const flowforgeInteractiveSelector = [
+        'button',
+        'input',
+        'select',
+        'textarea',
+        'summary',
+        '[contenteditable="true"]',
+        '[role="button"]',
+        '[role="menuitem"]',
+        '[data-filament-right-click-ignore]',
+    ].join(',');
+
     const recordRowSelector = '.fi-ta-record, .fi-ta-row';
+    const flowforgeCardSelector = '.flowforge-card[data-card-id]';
     const configuredTableSelector = [
         '[data-filament-right-click-record-config]',
         '[data-filament-right-click-bulk-config]',
         '[data-filament-right-click-config]',
     ].join(',');
+    const configuredFlowforgeBoardSelector = '[data-filament-right-click-flowforge-card-config]';
+    const configuredSurfaceSelector = [
+        configuredTableSelector,
+        configuredFlowforgeBoardSelector,
+    ].join(',');
 
     const state = {
         activeIndex: -1,
+        contextType: null,
         items: [],
-        lastRow: null,
+        lastContext: null,
         menu: null,
         open: false,
         recordKey: null,
-        table: null,
+        surface: null,
+        target: null,
     };
 
     let listenersBound = false;
@@ -36,13 +56,13 @@
         ensureMenu();
         bindListeners();
 
-        const table = root.matches?.(configuredTableSelector)
-            ? root
-            : root.querySelector?.(configuredTableSelector);
+        const surfaces = root.matches?.(configuredSurfaceSelector)
+            ? [root]
+            : Array.from(root.querySelectorAll?.(configuredSurfaceSelector) || []);
 
-        if (table) {
-            table.dataset.filamentRightClickReady = 'true';
-        }
+        surfaces.forEach(surface => {
+            surface.dataset.filamentRightClickReady = 'true';
+        });
     }
 
     function bindListeners() {
@@ -80,17 +100,13 @@
     }
 
     function handleContextMenu(event) {
-        const row = findRecordRow(event.target);
+        const context = resolveContext(event.target);
 
-        if (! row || isInteractiveTarget(event.target)) {
+        if (! context || isInteractiveTarget(event.target, context)) {
             return;
         }
 
-        const table = findEnabledTable(row);
-        const recordKey = parseRecordKey(row);
-        const config = table && recordKey ? resolveConfigForRow(table, recordKey) : null;
-
-        if (! table || ! config || ! recordKey || ! hasItems(config.items)) {
+        if (! hasItems(context.config.items)) {
             return;
         }
 
@@ -98,23 +114,21 @@
         event.stopPropagation();
 
         openMenu({
-            table,
-            row,
-            recordKey,
-            items: config.items,
+            context,
+            items: context.config.items,
             x: event.clientX,
             y: event.clientY,
         });
     }
 
     function rememberRow(event) {
-        const row = findRecordRow(event.target);
+        const context = resolveContext(event.target);
 
-        if (! row || ! findEnabledTable(row) || ! parseRecordKey(row)) {
+        if (! context) {
             return;
         }
 
-        state.lastRow = row;
+        state.lastContext = context;
     }
 
     function handleDocumentClick(event) {
@@ -136,24 +150,19 @@
             return;
         }
 
-        const row = findRecordRow(event.target) || state.lastRow;
-        const table = row ? findEnabledTable(row) : null;
-        const recordKey = row ? parseRecordKey(row) : null;
-        const config = table && recordKey ? resolveConfigForRow(table, recordKey) : null;
+        const context = resolveContext(event.target) || state.lastContext;
 
-        if (! row || ! table || ! config || ! recordKey || ! hasItems(config.items)) {
+        if (! context || ! hasItems(context.config.items)) {
             return;
         }
 
         event.preventDefault();
 
-        const rect = row.getBoundingClientRect();
+        const rect = context.target.getBoundingClientRect();
 
         openMenu({
-            table,
-            row,
-            recordKey,
-            items: config.items,
+            context,
+            items: context.config.items,
             x: rect.left + 16,
             y: rect.top + Math.min(rect.height - 8, 24),
         });
@@ -211,15 +220,71 @@
         return event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10');
     }
 
-    function findRecordRow(target) {
-        return target instanceof Element ? target.closest(recordRowSelector) : null;
+    function resolveContext(target) {
+        if (! (target instanceof Element)) {
+            return null;
+        }
+
+        return resolveTableContext(target) || resolveFlowforgeContext(target);
+    }
+
+    function resolveTableContext(target) {
+        const row = target.closest(recordRowSelector);
+
+        if (! row) {
+            return null;
+        }
+
+        const surface = findEnabledTable(row);
+        const recordKey = parseRecordKey(row);
+        const config = surface && recordKey ? resolveConfigForRow(surface, recordKey) : null;
+
+        if (! surface || ! config || ! recordKey) {
+            return null;
+        }
+
+        return {
+            type: 'table',
+            surface,
+            target: row,
+            recordKey,
+            config,
+        };
+    }
+
+    function resolveFlowforgeContext(target) {
+        const card = target.closest(flowforgeCardSelector);
+
+        if (! card) {
+            return null;
+        }
+
+        const surface = findEnabledFlowforgeBoard(card);
+        const recordKey = card.dataset.cardId;
+        const config = surface && recordKey ? getConfig(surface, 'flowforge-card') : null;
+
+        if (! surface || ! config || ! recordKey) {
+            return null;
+        }
+
+        return {
+            type: 'flowforge',
+            surface,
+            target: card,
+            recordKey,
+            config,
+        };
     }
 
     function findEnabledTable(element) {
         return element.closest(configuredTableSelector);
     }
 
-    function isInteractiveTarget(target) {
+    function findEnabledFlowforgeBoard(element) {
+        return element.closest(configuredFlowforgeBoardSelector);
+    }
+
+    function isInteractiveTarget(target, context) {
         if (! (target instanceof Element)) {
             return false;
         }
@@ -228,7 +293,9 @@
             return true;
         }
 
-        const interactive = target.closest(interactiveSelector);
+        const interactive = target.closest(context?.type === 'flowforge'
+            ? flowforgeInteractiveSelector
+            : interactiveSelector);
 
         if (! interactive) {
             return false;
@@ -259,32 +326,33 @@
         return getConfig(table, 'record');
     }
 
-    function getConfig(table, target) {
+    function getConfig(surface, target) {
         const encodedConfig = target === 'bulk'
-            ? table.dataset.filamentRightClickBulkConfig
-            : (table.dataset.filamentRightClickRecordConfig || table.dataset.filamentRightClickConfig);
+            ? surface.dataset.filamentRightClickBulkConfig
+            : (target === 'flowforge-card'
+                ? surface.dataset.filamentRightClickFlowforgeCardConfig
+                : (surface.dataset.filamentRightClickRecordConfig || surface.dataset.filamentRightClickConfig));
 
         if (! encodedConfig) {
             return null;
         }
 
-        const encodedCacheKey = target === 'bulk'
-            ? '_filamentRightClickBulkEncodedConfig'
-            : '_filamentRightClickRecordEncodedConfig';
-        const configCacheKey = target === 'bulk'
-            ? '_filamentRightClickBulkConfig'
-            : '_filamentRightClickRecordConfig';
+        const cacheScope = target === 'bulk'
+            ? 'Bulk'
+            : (target === 'flowforge-card' ? 'FlowforgeCard' : 'Record');
+        const encodedCacheKey = `_filamentRightClick${cacheScope}EncodedConfig`;
+        const configCacheKey = `_filamentRightClick${cacheScope}Config`;
 
-        if (table[encodedCacheKey] === encodedConfig) {
-            return table[configCacheKey];
+        if (surface[encodedCacheKey] === encodedConfig) {
+            return surface[configCacheKey];
         }
 
         try {
             const bytes = Uint8Array.from(atob(encodedConfig), character => character.charCodeAt(0));
             const config = JSON.parse(new TextDecoder().decode(bytes));
 
-            table[encodedCacheKey] = encodedConfig;
-            table[configCacheKey] = config;
+            surface[encodedCacheKey] = encodedConfig;
+            surface[configCacheKey] = config;
 
             return config;
         } catch (error) {
@@ -306,15 +374,17 @@
         });
     }
 
-    function openMenu({ table, row, recordKey, items, x, y }) {
+    function openMenu({ context, items, x, y }) {
         const menu = ensureMenu();
 
-        state.table = table;
-        state.recordKey = recordKey;
+        state.surface = context.surface;
+        state.target = context.target;
+        state.recordKey = context.recordKey;
+        state.contextType = context.type;
         state.items = flattenItems(items);
         state.activeIndex = -1;
         state.open = true;
-        state.lastRow = row;
+        state.lastContext = context;
 
         renderMenu(menu, items);
 
@@ -417,22 +487,32 @@
     }
 
     function triggerItem(item) {
-        const { table, recordKey } = state;
+        const { contextType, surface, recordKey } = state;
 
         closeMenu();
 
-        if (! table || ! recordKey || ! item.action) {
+        if (! surface || ! recordKey || ! item.action) {
             return;
         }
 
-        const wire = getWire(table);
+        const wire = getWire(surface);
 
         if (! wire) {
             return;
         }
 
+        if (contextType === 'flowforge') {
+            callWire(wire, 'mountAction', [
+                item.action,
+                [],
+                { recordKey },
+            ]);
+
+            return;
+        }
+
         if (item.target === 'bulk') {
-            triggerBulkAction(wire, table, recordKey, item.action);
+            triggerBulkAction(wire, surface, recordKey, item.action);
 
             return;
         }
@@ -658,7 +738,9 @@
         state.menu.hidden = true;
         state.menu.classList.remove('fi-open');
         state.open = false;
-        state.table = null;
+        state.contextType = null;
+        state.surface = null;
+        state.target = null;
         state.recordKey = null;
         state.items = [];
         state.activeIndex = -1;

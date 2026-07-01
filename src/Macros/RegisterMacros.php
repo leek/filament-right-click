@@ -13,10 +13,16 @@ use InvalidArgumentException;
 use JsonException;
 use Leek\FilamentRightClick\Contracts\ContextMenuEntry;
 use Leek\FilamentRightClick\Menu\ContextMenuItem;
+use WeakMap;
 
 class RegisterMacros
 {
     protected static bool $registered = false;
+
+    /**
+     * @var WeakMap<object, array<string, mixed>>|null
+     */
+    protected static ?WeakMap $flowforgeContextMenuAttributes = null;
 
     public static function register(): void
     {
@@ -47,7 +53,29 @@ class RegisterMacros
             ]);
         });
 
+        static::registerFlowforgeMacros();
+
         static::$registered = true;
+    }
+
+    protected static function registerFlowforgeMacros(): void
+    {
+        if (! class_exists('Relaticle\\Flowforge\\Board')) {
+            return;
+        }
+
+        $boardClass = 'Relaticle\\Flowforge\\Board';
+
+        $boardClass::macro('contextMenuCardActions', function (array $entries): object {
+            $entries = RegisterMacros::normalizeFlowforgeCardEntries($entries);
+
+            RegisterMacros::registerFlowforgeEntries($this, $entries);
+            RegisterMacros::applyFlowforgeContextMenuAttributes($this, [
+                'data-filament-right-click-flowforge-card-config' => RegisterMacros::encodeConfig($entries),
+            ]);
+
+            return $this;
+        });
     }
 
     /**
@@ -98,6 +126,20 @@ class RegisterMacros
     }
 
     /**
+     * @param  array<ContextMenuEntry|Action>  $entries
+     * @return array<ContextMenuEntry>
+     */
+    public static function normalizeFlowforgeCardEntries(array $entries): array
+    {
+        $entries = static::normalizeEntries($entries);
+
+        static::assertEntriesUseTarget($entries, 'record', 'contextMenuCardActions() only accepts record actions.');
+        static::assertEntriesUseActionType($entries, Action::class, 'contextMenuCardActions() only accepts record actions.', rejectBulkActions: true);
+
+        return $entries;
+    }
+
+    /**
      * @param  array<ContextMenuEntry>  $entries
      * @return array<Action>
      */
@@ -143,6 +185,25 @@ class RegisterMacros
     }
 
     /**
+     * @param  array<ContextMenuEntry>  $entries
+     */
+    public static function registerFlowforgeEntries(object $board, array $entries): void
+    {
+        if (! method_exists($board, 'getLivewire')) {
+            throw new InvalidArgumentException('Flowforge context menu actions can only be registered on a board with a Livewire component.');
+        }
+
+        $livewire = $board->getLivewire();
+
+        (function (array $actions) use ($livewire): void {
+            foreach ($actions as $action) {
+                $action->livewire($livewire);
+                $this->cacheAction($action);
+            }
+        })->call($livewire, static::getActions($entries));
+    }
+
+    /**
      * @param  array<string, mixed>  $attributes
      */
     public static function applyContextMenuAttributes(Table $table, array $attributes): Table
@@ -154,6 +215,32 @@ class RegisterMacros
             'x-init' => static::assetLoaderExpression(),
             ...$attributes,
         ], merge: true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function applyFlowforgeContextMenuAttributes(object $board, array $attributes): void
+    {
+        static::flowforgeContextMenuAttributes()[$board] = [
+            'class' => 'fi-right-click-flowforge-board',
+            'data-filament-right-click-script-src' => FilamentAsset::getScriptSrc('filament-right-click', 'leek/filament-right-click'),
+            'data-filament-right-click-style-href' => static::getStyleHref(),
+            'x-init' => static::assetLoaderExpression(),
+            ...$attributes,
+        ];
+
+        if (method_exists($board, 'getView') && method_exists($board, 'view') && $board->getView() === 'flowforge::index') {
+            $board->view('filament-right-click::flowforge.index');
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function getFlowforgeContextMenuAttributes(object $board): array
+    {
+        return static::flowforgeContextMenuAttributes()[$board] ?? [];
     }
 
     /**
@@ -248,5 +335,13 @@ class RegisterMacros
         }
 
         return $style->getHref();
+    }
+
+    /**
+     * @return WeakMap<object, array<string, mixed>>
+     */
+    protected static function flowforgeContextMenuAttributes(): WeakMap
+    {
+        return static::$flowforgeContextMenuAttributes ??= new WeakMap;
     }
 }

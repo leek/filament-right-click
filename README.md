@@ -4,9 +4,9 @@
     <img src="art/cover.jpg" alt="Filament Right Click cover art">
 </p>
 
-Right-click table row menus for Filament panels.
+Right-click table row and Flowforge card menus for Filament panels.
 
-This package adds a static right-click menu to Filament table records. Menu items trigger native Filament table actions, so action modals, confirmation, authorization, validation, notifications, redirects, and server-side disabled/hidden checks remain owned by Filament.
+This package adds a static right-click menu to Filament table records and, when Flowforge is installed, Kanban board cards. Menu items trigger native Filament actions, so action modals, confirmation, authorization, validation, notifications, redirects, and server-side disabled/hidden checks remain owned by Filament.
 
 ## Installation
 
@@ -80,6 +80,48 @@ The wrapped actions are registered as table actions, but they are not rendered i
 
 Bulk actions are registered as table bulk actions without rendering in the normal bulk action dropdown. When the right-clicked row is already selected, the bulk menu uses the current Filament selection, including select-all-across-pages state. When the right-clicked row is not selected, the single-record menu opens instead.
 
+### Flowforge cards
+
+If `relaticle/flowforge` is installed, the plugin also registers a `contextMenuCardActions()` macro on Flowforge boards:
+
+```php
+use Filament\Actions\Action;
+use Filament\Support\Icons\Heroicon;
+use Leek\FilamentRightClick\Menu\ContextMenuItem;
+use Relaticle\Flowforge\Board;
+
+public function board(Board $board): Board
+{
+    return $board
+        ->query(Task::query())
+        ->columns([
+            // ...
+        ])
+        ->recordActions([
+            // Visible card actions...
+        ])
+        ->contextMenuCardActions([
+            ContextMenuItem::for(
+                Action::make('viewTask')
+                    ->label('View Task')
+                    ->action(fn ($record) => $this->viewTask($record)),
+            )
+                ->icon(Heroicon::Eye),
+
+            ContextMenuItem::for(
+                Action::make('archiveTask')
+                    ->requiresConfirmation()
+                    ->action(fn ($record) => $record->archive()),
+            )
+                ->label('Archive')
+                ->icon(Heroicon::ArchiveBox)
+                ->color('warning'),
+        ]);
+}
+```
+
+Flowforge card context actions are registered with Filament's action cache, but they are not added to Flowforge's visible card action group. On click, the package calls Flowforge's native card action mounting path with the card's `recordKey`.
+
 ## Screenshot
 
 <p align="center">
@@ -109,8 +151,11 @@ If you publish or bundle assets in your own build pipeline, keep the DOM contrac
 - table root record menu: `data-filament-right-click-record-config`
 - table root bulk menu: `data-filament-right-click-bulk-config`
 - legacy table root record menu: `data-filament-right-click-config`
+- Flowforge board card menu: `data-filament-right-click-flowforge-card-config`
 - row key source: Filament's native row `wire:key`
+- Flowforge card key source: `data-card-id`
 - record action call: `mountTableAction(actionName, recordKey)`
+- Flowforge card action call: `mountAction(actionName, [], { recordKey })`
 - bulk action call: synchronize Filament's selected table record properties, then mount the bulk action
 
 ## Bulk actions
@@ -137,5 +182,7 @@ Bulk actions are still server-enforced by Filament. Hidden, disabled, and unauth
 ## Compatibility
 
 This package targets Filament v4 and v5.
+
+Flowforge support is optional and is registered only when `Relaticle\Flowforge\Board` exists.
 
 Record actions use Filament's table action mounting path. Bulk actions use the newer unified `mountAction()` path when available and fall back to Filament's table bulk action compatibility method.
