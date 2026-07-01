@@ -6,6 +6,7 @@ namespace Leek\FilamentRightClick\Menu;
 
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Support\Enums\IconSize;
 use Filament\Support\View\ComponentAttributeBag;
 use Illuminate\Contracts\Support\Htmlable;
@@ -21,7 +22,7 @@ class ContextMenuItem implements ContextMenuEntry
 
     protected ?string $color = null;
 
-    protected string $target = 'record';
+    protected ?string $target = null;
 
     public function __construct(protected Action $action) {}
 
@@ -33,6 +34,11 @@ class ContextMenuItem implements ContextMenuEntry
     public static function make(Action $action): static
     {
         return static::for($action);
+    }
+
+    public static function forBulkAction(BulkAction $action): static
+    {
+        return static::for($action)->bulk();
     }
 
     public function label(?string $label): static
@@ -63,6 +69,20 @@ class ContextMenuItem implements ContextMenuEntry
         return $this;
     }
 
+    public function record(): static
+    {
+        $this->target = 'record';
+
+        return $this;
+    }
+
+    public function bulk(): static
+    {
+        $this->target = 'bulk';
+
+        return $this;
+    }
+
     public function getAction(): Action
     {
         return $this->action;
@@ -84,11 +104,20 @@ class ContextMenuItem implements ContextMenuEntry
         return array_filter([
             'type' => 'item',
             'action' => $this->action->getName(),
-            'target' => $this->target,
+            'target' => $this->getTarget(),
             'label' => $this->getLabel(),
             'icon' => $this->getIconHtml(),
             'color' => $this->color,
         ], fn (mixed $value): bool => $value !== null);
+    }
+
+    protected function getTarget(): string
+    {
+        if (filled($this->target)) {
+            return $this->target;
+        }
+
+        return $this->action instanceof BulkAction ? 'bulk' : 'record';
     }
 
     protected function getLabel(): string

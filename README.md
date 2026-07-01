@@ -26,6 +26,7 @@ Use `contextMenuActions()` on a Filament table:
 
 ```php
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Actions\DeleteAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -53,6 +54,15 @@ public static function table(Table $table): Table
 
             ContextMenuSeparator::make(),
 
+            ContextMenuItem::forBulkAction(
+                BulkAction::make('archiveSelected')
+                    ->requiresConfirmation()
+                    ->action(fn ($records) => $records->each->archive()),
+            )
+                ->label('Archive selected')
+                ->icon(Heroicon::ArchiveBox)
+                ->color('warning'),
+
             ContextMenuItem::for(DeleteAction::make())
                 ->label('Delete')
                 ->icon(Heroicon::Trash)
@@ -62,6 +72,8 @@ public static function table(Table $table): Table
 ```
 
 The wrapped actions are registered as table actions, but they are not rendered in the normal row action column. On click, the package calls Filament's table action mounting path for the row record key.
+
+Bulk actions are registered as table bulk actions without rendering in the normal bulk action dropdown. When the right-clicked row is already selected, bulk menu items use the current Filament selection, including select-all-across-pages state. When the right-clicked row is not selected, the bulk item runs against that row only.
 
 ## Behavior
 
@@ -85,14 +97,32 @@ If you publish or bundle assets in your own build pipeline, keep the DOM contrac
 
 - table root: `data-filament-right-click-config`
 - row key source: Filament's native row `wire:key`
-- action call: `mountTableAction(actionName, recordKey)`
+- record action call: `mountTableAction(actionName, recordKey)`
+- bulk action call: synchronize Filament's selected table record properties, then mount the bulk action
 
 ## Bulk actions
 
-Bulk right-click is planned as a second phase. The v1 menu payload already includes a `target` field, and the JavaScript action runner has a reserved branch for bulk targets. The first release only documents and supports record targets.
+Use `ContextMenuItem::forBulkAction()` or pass a `BulkAction` directly:
+
+```php
+use Filament\Actions\BulkAction;
+use Leek\FilamentRightClick\Menu\ContextMenuItem;
+
+$table->contextMenuActions([
+    ContextMenuItem::forBulkAction(
+        BulkAction::make('deleteSelected')
+            ->requiresConfirmation()
+            ->action(fn ($records) => $records->each->delete()),
+    )
+        ->label('Delete selected')
+        ->color('danger'),
+]);
+```
+
+Bulk actions are still server-enforced by Filament. Hidden, disabled, and unauthorized actions will not mount.
 
 ## Compatibility
 
 This package targets Filament v4 and v5.
 
-The implementation intentionally calls `mountTableAction()` for record actions. Filament v5 keeps that method as a table compatibility wrapper around the newer unified action mounting API.
+Record actions use Filament's table action mounting path. Bulk actions use the newer unified `mountAction()` path when available and fall back to Filament's table bulk action compatibility method.

@@ -1,6 +1,7 @@
 <?php
 
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Panel;
 use Filament\Tables\Table;
 use Leek\FilamentRightClick\FilamentRightClickPlugin;
@@ -56,4 +57,42 @@ it('registers wrapped actions as context-only table actions', function (): void 
     expect($attributes['data-filament-right-click-style-href'])->toContain('filament-right-click.css');
     expect($attributes['x-init']->toHtml())->toContain('FilamentRightClick');
     expect($payload['items'][0]['action'])->toBe('archive');
+});
+
+it('registers bulk actions as context-only table bulk actions', function (): void {
+    FilamentRightClickPlugin::make()->register(Panel::make());
+
+    $table = Table::make(new FakeTableComponent)
+        ->columns([])
+        ->contextMenuActions([
+            ContextMenuItem::for(BulkAction::make('archiveSelected'))->label('Archive selected'),
+        ]);
+
+    $attributes = $table->getExtraAttributes();
+    $payload = json_decode(base64_decode($attributes['data-filament-right-click-config']), associative: true);
+
+    expect($table->hasBulkAction('archiveSelected'))->toBeTrue();
+    expect($table->hasAction('archiveSelected'))->toBeFalse();
+    expect($table->getRecordActions())->toBeEmpty();
+    expect($payload['items'][0]['action'])->toBe('archiveSelected');
+    expect($payload['items'][0]['target'])->toBe('bulk');
+});
+
+it('wraps raw bulk actions as bulk menu items', function (): void {
+    $entries = RegisterMacros::normalizeEntries([
+        BulkAction::make('deleteSelected'),
+    ]);
+
+    $payload = json_decode(base64_decode(RegisterMacros::encodeConfig($entries)), associative: true);
+
+    expect($payload['items'][0]['action'])->toBe('deleteSelected');
+    expect($payload['items'][0]['target'])->toBe('bulk');
+});
+
+it('can explicitly target a bulk action', function (): void {
+    $entry = ContextMenuItem::forBulkAction(BulkAction::make('exportSelected'));
+
+    expect($entry->toPayload())
+        ->action->toBe('exportSelected')
+        ->target->toBe('bulk');
 });

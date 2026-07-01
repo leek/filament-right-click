@@ -395,12 +395,141 @@
         }
 
         if (item.target === 'bulk') {
-            callWire(wire, 'mountTableBulkAction', [item.action]);
+            triggerBulkAction(wire, table, recordKey, item.action);
 
             return;
         }
 
         callWire(wire, 'mountTableAction', [item.action, recordKey]);
+    }
+
+    function triggerBulkAction(wire, table, recordKey, action) {
+        const selection = resolveBulkSelection(table, recordKey);
+
+        syncBulkSelection(wire, selection);
+
+        if (canCallWire(wire, 'mountAction')) {
+            callWire(wire, 'mountAction', [
+                action,
+                {},
+                { table: true, bulk: true },
+            ]);
+
+            return;
+        }
+
+        callWire(wire, 'mountTableBulkAction', [
+            action,
+            selection.isTrackingDeselectedRecords ? null : selection.selectedRecords,
+        ]);
+    }
+
+    function resolveBulkSelection(table, recordKey) {
+        const tableState = getTableState(table);
+
+        if (tableState) {
+            const isRecordSelected = isRecordSelectedInState(tableState, recordKey);
+
+            if (isRecordSelected) {
+                return {
+                    isTrackingDeselectedRecords: Boolean(tableState.isTrackingDeselectedRecords),
+                    selectedRecords: toArray(tableState.selectedRecords),
+                    deselectedRecords: toArray(tableState.deselectedRecords),
+                };
+            }
+        }
+
+        const checkedRecordKeys = getCheckedRecordKeys(table);
+
+        if (checkedRecordKeys.includes(recordKey)) {
+            return {
+                isTrackingDeselectedRecords: false,
+                selectedRecords: checkedRecordKeys,
+                deselectedRecords: [],
+            };
+        }
+
+        return {
+            isTrackingDeselectedRecords: false,
+            selectedRecords: [recordKey],
+            deselectedRecords: [],
+        };
+    }
+
+    function getTableState(table) {
+        if (typeof window.Alpine?.$data === 'function') {
+            const tableState = window.Alpine.$data(table);
+
+            if (tableState) {
+                return tableState;
+            }
+        }
+
+        return table._x_dataStack?.[0] ?? null;
+    }
+
+    function isRecordSelectedInState(tableState, recordKey) {
+        if (typeof tableState.isRecordSelected === 'function') {
+            return tableState.isRecordSelected(recordKey);
+        }
+
+        if (tableState.isTrackingDeselectedRecords) {
+            return ! toArray(tableState.deselectedRecords).includes(recordKey);
+        }
+
+        return toArray(tableState.selectedRecords).includes(recordKey);
+    }
+
+    function getCheckedRecordKeys(table) {
+        return Array.from(table.querySelectorAll('.fi-ta-record-checkbox:checked'))
+            .map(checkbox => checkbox.value)
+            .filter(value => value !== '');
+    }
+
+    function toArray(value) {
+        if (value instanceof Set) {
+            return [...value];
+        }
+
+        if (Array.isArray(value)) {
+            return value;
+        }
+
+        if (value === null || value === undefined) {
+            return [];
+        }
+
+        if (typeof value === 'string') {
+            return [value];
+        }
+
+        return Array.from(value);
+    }
+
+    function syncBulkSelection(wire, selection) {
+        setWireProperty(
+            wire,
+            'isTrackingDeselectedTableRecords',
+            selection.isTrackingDeselectedRecords,
+        );
+        setWireProperty(wire, 'selectedTableRecords', selection.selectedRecords);
+        setWireProperty(wire, 'deselectedTableRecords', selection.deselectedRecords);
+    }
+
+    function setWireProperty(wire, property, value) {
+        if (typeof wire.set === 'function') {
+            wire.set(property, value, false);
+
+            return;
+        }
+
+        if (typeof wire.$set === 'function') {
+            wire.$set(property, value, false);
+
+            return;
+        }
+
+        wire[property] = value;
     }
 
     function getWire(table) {
@@ -409,6 +538,12 @@
         const component = componentId ? window.Livewire?.find(componentId) : null;
 
         return component?.$wire || component || null;
+    }
+
+    function canCallWire(wire, method) {
+        return typeof wire[method] === 'function'
+            || typeof wire.$call === 'function'
+            || typeof wire.call === 'function';
     }
 
     function callWire(wire, method, parameters) {
