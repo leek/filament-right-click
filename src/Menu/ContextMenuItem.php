@@ -8,8 +8,8 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Support\Enums\IconSize;
-use Filament\Support\View\ComponentAttributeBag;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\View\ComponentAttributeBag;
 use Leek\FilamentRightClick\Contracts\ContextMenuEntry;
 use Throwable;
 
