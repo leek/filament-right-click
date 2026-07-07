@@ -35,9 +35,9 @@
         "pestphp/pest-plugin-laravel": "^3.0 || ^4.0"
     },
     "suggest": {
-        "leek/filament-workflows": "Trigger a workflow on the right-clicked record — wrap TriggerWorkflowAction in a ContextMenuItem.",
         "leek/filament-header-filters": "Add inline header filters to the tables you enhance with right-click menus.",
-        "leek/filament-ui-plus": "Enhanced Filament UI components to match your upgraded tables."
+        "leek/filament-ui-plus": "Enhanced Filament UI components to match your upgraded tables.",
+        "leek/filament-workflows": "Trigger a workflow on the right-clicked record — wrap TriggerWorkflowAction in a ContextMenuItem."
     },
     "autoload": {
         "psr-4": {
