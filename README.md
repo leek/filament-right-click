@@ -118,6 +118,26 @@ public function board(Board $board): Board
 
 Flowforge card context actions are registered with Filament's action cache, but they are not added to Flowforge's visible card action group. On click, the package calls Flowforge's native card action mounting path with the card's `recordKey`.
 
+### Trigger a workflow (Filament Workflow Engine)
+
+Because context menu items wrap native Filament actions, any action works — including the `TriggerWorkflowAction` shipped by [Filament Workflow Engine](https://filamentphp.com/plugins/leek-workflow-engine). If `leek/filament-workflows` is installed, drop it into a row menu to let users run a manual workflow against the right-clicked record:
+
+```php
+use Filament\Support\Icons\Heroicon;
+use Leek\FilamentRightClick\Menu\ContextMenuItem;
+use Leek\FilamentWorkflows\Filament\Actions\TriggerWorkflowAction;
+
+->contextMenuActions([
+    ContextMenuItem::for(
+        TriggerWorkflowAction::make(),
+    )
+        ->label('Run Workflow')
+        ->icon(Heroicon::Play),
+]);
+```
+
+The action opens Workflow Engine's own modal, filtered to manual workflows configured for that record's model, and queues the run — all authorization, rate limiting, and notifications stay owned by the Workflow Engine. No wiring is required beyond installing both packages.
+
 ## Screenshot
 
 <p align="center">
@@ -182,3 +202,17 @@ This package targets Filament v4 and v5.
 Flowforge support is optional and is registered only when `Relaticle\Flowforge\Board` exists.
 
 Record actions use Filament's table action mounting path. Bulk actions use the newer unified `mountAction()` path when available and fall back to Filament's table bulk action compatibility method.
+
+## More Filament plugins by Leek
+
+**Premium**
+
+- [**Filament UI Plus**](https://filamentphp.com/plugins/leek-ui-plus) — Enhanced UI components: dual sub-navigation, animated sidebar, horizontal-scroll tables, loading bar, and more.
+- [**Filament Workflow Engine**](https://filamentphp.com/plugins/leek-workflow-engine) — Automated workflows with a visual builder, triggers/actions, async execution, and audit logging.
+- [**Filament Decision Tables**](https://filamentphp.com/plugins/leek-decision-tables) — Business rules engine with spreadsheet-style decision tables.
+
+**Free & open source**
+
+- [**Filament Header Filters**](https://github.com/leek/filament-header-filters) — Inline filters attached to table column headers.
+- [**Filament Subtenant Scope**](https://github.com/leek/filament-subtenant-scope) — Second-level tenancy scoping via a topnav dropdown.
+- [**Filament DiceBear**](https://github.com/leek/filament-dicebear) — DiceBear avatar provider with 31 styles.
