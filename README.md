@@ -1,6 +1,6 @@
 # Filament Right Click
 
-Right-click table row and Flowforge card menus for Filament panels.
+Right-click table rows, tree view nodes, and Flowforge card menus for Filament panels.
 
 This package adds a static right-click menu to Filament table records and, when Flowforge is installed, Kanban board cards. Menu items trigger native Filament actions, so action modals, confirmation, authorization, validation, notifications, redirects, and server-side disabled/hidden checks remain owned by Filament.
 
@@ -167,10 +167,13 @@ If you publish or bundle assets in your own build pipeline, keep the DOM contrac
 - table root record menu: `data-filament-right-click-record-config`
 - table root bulk menu: `data-filament-right-click-bulk-config`
 - legacy table root record menu: `data-filament-right-click-config`
+- tree node record menu: `data-filament-right-click-tree-config`
+- tree node bulk menu: `data-filament-right-click-tree-bulk-config`
 - Flowforge board card menu: `data-filament-right-click-flowforge-card-config`
 - row key source: Filament's native row `wire:key`
+- tree node key source: `data-item-id` on `[data-tree-item]`
 - Flowforge card key source: `data-card-id`
-- record action call: `mountTableAction(actionName, recordKey)`
+- record action call: `mountTableAction(actionName, recordKey)` (table) or `mountAction(actionName, [], { recordKey })` (tree)
 - Flowforge card action call: `mountAction(actionName, [], { recordKey })`
 - bulk action call: synchronize Filament's selected table record properties, then mount the bulk action
 
@@ -194,6 +197,32 @@ $table->contextMenuBulkActions([
 ```
 
 Bulk actions are still server-enforced by Filament. Hidden, disabled, and unauthorized actions will not mount.
+
+### Tree bulk actions
+
+Tree views from [filament-tree-kit](https://github.com/W84T/Filament-Tree-Grid) also support bulk actions via `contextMenuBulkActions()`:
+
+```php
+use Filament\Actions\BulkAction;
+use Leek\FilamentRightClick\Menu\ContextMenuItem;
+
+public static function tree(Tree $tree): Tree
+{
+    return $tree
+        ->contextMenuActions([
+            // single-record actions...
+        ])
+        ->contextMenuBulkActions([
+            ContextMenuItem::forBulkAction(
+                BulkAction::make('activate')
+                    ->label('Activate')
+                    ->action(fn (Collection $records) => $records->each->activate()),
+            ),
+        ]);
+}
+```
+
+Tree multi-select is activated by `Ctrl+click` on tree nodes. Right-clicking a selected node shows the bulk menu; right-clicking an unselected node shows the single-record menu. Selection is preserved across search, filter, and page navigation.
 
 ## Compatibility
 

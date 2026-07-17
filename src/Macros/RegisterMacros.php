@@ -216,6 +216,31 @@ class RegisterMacros
     }
 
     /**
+     * @param  array<ContextMenuEntry>  $entries
+     */
+    public static function registerLivewireActions(object $livewire, array $entries): void
+    {
+        (function (array $actions): void {
+            foreach ($actions as $action) {
+                $action->livewire($this);
+                $this->cacheAction($action);
+            }
+        })->call($livewire, static::getActions($entries));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function assetAttributes(): array
+    {
+        return [
+            'data-filament-right-click-script-src' => FilamentAsset::getScriptSrc('filament-right-click', 'leek/filament-right-click'),
+            'data-filament-right-click-style-href' => static::getStyleHref(),
+            'x-init' => static::assetLoaderExpression(),
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $attributes
      */
     public static function applyContextMenuAttributes(Table $table, array $attributes): Table
@@ -337,16 +362,12 @@ class RegisterMacros
             JS);
     }
 
-    public static function getStyleHref(): string
+    public static function getStyleHref(): ?string
     {
         $style = collect(FilamentAsset::getStyles(['leek/filament-right-click']))
             ->first(fn ($style): bool => $style->getId() === 'filament-right-click');
 
-        if (! $style) {
-            throw new InvalidArgumentException('Context menu stylesheet asset has not been registered.');
-        }
-
-        return $style->getHref();
+        return $style?->getHref();
     }
 
     /**

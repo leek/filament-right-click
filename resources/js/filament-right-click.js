@@ -27,15 +27,18 @@
 
     const recordRowSelector = '.fi-ta-record, .fi-ta-row';
     const flowforgeCardSelector = '.flowforge-card[data-card-id]';
+    const treeNodeSelector = '[data-tree-item]';
     const configuredTableSelector = [
         '[data-filament-right-click-record-config]',
         '[data-filament-right-click-bulk-config]',
         '[data-filament-right-click-config]',
     ].join(',');
     const configuredFlowforgeBoardSelector = '[data-filament-right-click-flowforge-card-config]';
+    const configuredTreeSelector = '[data-filament-right-click-tree-config]';
     const configuredSurfaceSelector = [
         configuredTableSelector,
         configuredFlowforgeBoardSelector,
+        configuredTreeSelector,
     ].join(',');
 
     const state = {
@@ -100,6 +103,12 @@
     }
 
     function handleContextMenu(event) {
+        if (state.open) {
+            event.preventDefault();
+
+            return;
+        }
+
         const context = resolveContext(event.target);
 
         if (! context || isInteractiveTarget(event.target, context)) {
@@ -204,6 +213,23 @@
             return;
         }
 
+        if (event.key >= '1' && event.key <= '9') {
+            event.preventDefault();
+            var index = parseInt(event.key) - 1;
+            var button = getMenuButtons()[index];
+            if (button) button.click();
+
+            return;
+        }
+
+        if (event.key === '0') {
+            event.preventDefault();
+            var button = getMenuButtons()[9];
+            if (button) button.click();
+
+            return;
+        }
+
         if (event.key === 'Enter' || event.key === ' ') {
             const button = getMenuButtons()[state.activeIndex];
 
@@ -225,7 +251,7 @@
             return null;
         }
 
-        return resolveTableContext(target) || resolveFlowforgeContext(target);
+        return resolveTableContext(target) || resolveFlowforgeContext(target) || resolveTreeContext(target);
     }
 
     function resolveTableContext(target) {
@@ -280,6 +306,56 @@
         return element.closest(configuredTableSelector);
     }
 
+    function resolveTreeContext(target) {
+        const node = target.closest(treeNodeSelector);
+
+        if (! node) {
+            return null;
+        }
+
+        const surface = node.closest(configuredTreeSelector);
+
+        if (! surface) {
+            return null;
+        }
+
+        const recordKey = node.dataset.itemId;
+
+        if (! recordKey) {
+            return null;
+        }
+
+        const treeBulkConfig = getConfig(surface, 'tree-bulk');
+
+        if (treeBulkConfig && hasItems(treeBulkConfig.items) && isTreeNodeSelected(node)) {
+            return {
+                type: 'tree',
+                surface,
+                target: node,
+                recordKey,
+                config: treeBulkConfig,
+            };
+        }
+
+        const config = getConfig(surface, 'tree');
+
+        if (! config || ! hasItems(config.items)) {
+            return null;
+        }
+
+        return {
+            type: 'tree',
+            surface,
+            target: node,
+            recordKey,
+            config,
+        };
+    }
+
+    function isTreeNodeSelected(node) {
+        return node.classList.contains('filament-tree-node-selected');
+    }
+
     function findEnabledFlowforgeBoard(element) {
         return element.closest(configuredFlowforgeBoardSelector);
     }
@@ -327,19 +403,38 @@
     }
 
     function getConfig(surface, target) {
-        const encodedConfig = target === 'bulk'
-            ? surface.dataset.filamentRightClickBulkConfig
-            : (target === 'flowforge-card'
-                ? surface.dataset.filamentRightClickFlowforgeCardConfig
-                : (surface.dataset.filamentRightClickRecordConfig || surface.dataset.filamentRightClickConfig));
+        let encodedConfig;
+
+        if (target === 'bulk') {
+            encodedConfig = surface.dataset.filamentRightClickBulkConfig;
+        } else if (target === 'flowforge-card') {
+            encodedConfig = surface.dataset.filamentRightClickFlowforgeCardConfig;
+        } else if (target === 'tree') {
+            encodedConfig = surface.dataset.filamentRightClickTreeConfig;
+        } else if (target === 'tree-bulk') {
+            encodedConfig = surface.dataset.filamentRightClickTreeBulkConfig;
+        } else {
+            encodedConfig = surface.dataset.filamentRightClickRecordConfig || surface.dataset.filamentRightClickConfig;
+        }
 
         if (! encodedConfig) {
             return null;
         }
 
-        const cacheScope = target === 'bulk'
-            ? 'Bulk'
-            : (target === 'flowforge-card' ? 'FlowforgeCard' : 'Record');
+        let cacheScope;
+
+        if (target === 'bulk') {
+            cacheScope = 'Bulk';
+        } else if (target === 'flowforge-card') {
+            cacheScope = 'FlowforgeCard';
+        } else if (target === 'tree') {
+            cacheScope = 'Tree';
+        } else if (target === 'tree-bulk') {
+            cacheScope = 'TreeBulk';
+        } else {
+            cacheScope = 'Record';
+        }
+
         const encodedCacheKey = `_filamentRightClick${cacheScope}EncodedConfig`;
         const configCacheKey = `_filamentRightClick${cacheScope}Config`;
 
@@ -386,7 +481,7 @@
         state.open = true;
         state.lastContext = context;
 
-        renderMenu(menu, items);
+        renderMenu(menu, items, context);
 
         menu.hidden = false;
         menu.classList.add('fi-open');
@@ -395,73 +490,94 @@
         focusItem(0);
     }
 
-    function renderMenu(menu, entries) {
+    function renderMenu(menu, entries, context) {
         menu.innerHTML = '';
 
-        entries.forEach(entry => renderEntry(menu, entry));
+        if (context?.config?.target === 'bulk' && context?.type === 'tree') {
+            var selectedCount = context.surface
+                ? context.surface.querySelectorAll('.filament-tree-node-selected').length
+                : 0;
+            var header = document.createElement('div');
+            header.className = 'fi-right-click-menu-section-label';
+            header.textContent = selectedCount + ' selected';
+            menu.appendChild(header);
+        }
+
+        var shortcutIndex = 0;
+
+        function renderEntryWithShortcuts(parent, entry) {
+            if (entry.type === 'section') {
+                const section = document.createElement('div');
+                section.className = 'fi-right-click-menu-section';
+
+                if (entry.label) {
+                    const label = document.createElement('div');
+                    label.className = 'fi-right-click-menu-section-label';
+                    label.textContent = entry.label;
+                    section.appendChild(label);
+                }
+
+                if (Array.isArray(entry.items)) {
+                    entry.items.forEach(item => renderEntryWithShortcuts(section, item));
+                }
+
+                parent.appendChild(section);
+
+                return;
+            }
+
+            if (entry.type !== 'item') {
+                if (entry.type === 'separator') {
+                    const separator = document.createElement('div');
+                    separator.className = 'fi-right-click-menu-separator';
+                    separator.setAttribute('role', 'separator');
+                    parent.appendChild(separator);
+                }
+
+                return;
+            }
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'fi-right-click-menu-item';
+            button.dataset.action = entry.action;
+            button.dataset.target = entry.target || 'record';
+            button.setAttribute('role', 'menuitem');
+            button.tabIndex = -1;
+
+            if (entry.color) {
+                button.classList.add(`fi-color-${entry.color}`);
+            }
+
+            if (entry.icon) {
+                const icon = document.createElement('span');
+                icon.className = 'fi-right-click-menu-item-icon-ctn';
+                icon.innerHTML = entry.icon;
+                button.appendChild(icon);
+            }
+
+            const label = document.createElement('span');
+            label.className = 'fi-right-click-menu-item-label';
+            label.textContent = entry.label || entry.action;
+            button.appendChild(label);
+
+            var shortcutHint = document.createElement('span');
+            shortcutHint.className = 'fi-right-click-menu-item-shortcut';
+            shortcutHint.textContent = shortcutIndex < 9 ? (shortcutIndex + 1) : (shortcutIndex === 9 ? '0' : '');
+            button.appendChild(shortcutHint);
+
+            shortcutIndex++;
+
+            button.addEventListener('click', () => triggerItem(entry));
+
+            parent.appendChild(button);
+        }
+
+        entries.forEach(entry => renderEntryWithShortcuts(menu, entry));
     }
 
     function renderEntry(menu, entry) {
-        if (entry.type === 'separator') {
-            const separator = document.createElement('div');
-            separator.className = 'fi-right-click-menu-separator';
-            separator.setAttribute('role', 'separator');
-            menu.appendChild(separator);
-
-            return;
-        }
-
-        if (entry.type === 'section') {
-            const section = document.createElement('div');
-            section.className = 'fi-right-click-menu-section';
-
-            if (entry.label) {
-                const label = document.createElement('div');
-                label.className = 'fi-right-click-menu-section-label';
-                label.textContent = entry.label;
-                section.appendChild(label);
-            }
-
-            if (Array.isArray(entry.items)) {
-                entry.items.forEach(item => renderEntry(section, item));
-            }
-
-            menu.appendChild(section);
-
-            return;
-        }
-
-        if (entry.type !== 'item') {
-            return;
-        }
-
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'fi-right-click-menu-item';
-        button.dataset.action = entry.action;
-        button.dataset.target = entry.target || 'record';
-        button.setAttribute('role', 'menuitem');
-        button.tabIndex = -1;
-
-        if (entry.color) {
-            button.classList.add(`fi-color-${entry.color}`);
-        }
-
-        if (entry.icon) {
-            const icon = document.createElement('span');
-            icon.className = 'fi-right-click-menu-item-icon-ctn';
-            icon.innerHTML = entry.icon;
-            button.appendChild(icon);
-        }
-
-        const label = document.createElement('span');
-        label.className = 'fi-right-click-menu-item-label';
-        label.textContent = entry.label || entry.action;
-        button.appendChild(label);
-
-        button.addEventListener('click', () => triggerItem(entry));
-
-        menu.appendChild(button);
+        // Kept for backward compatibility — use renderMenu for new items
     }
 
     function flattenItems(entries) {
@@ -502,6 +618,22 @@
         }
 
         if (contextType === 'flowforge') {
+            callWire(wire, 'mountAction', [
+                item.action,
+                [],
+                { recordKey },
+            ]);
+
+            return;
+        }
+
+        if (contextType === 'tree') {
+            if (item.target === 'bulk') {
+                triggerTreeBulkAction(wire, surface, recordKey, item.action);
+
+                return;
+            }
+
             callWire(wire, 'mountAction', [
                 item.action,
                 [],
@@ -631,6 +763,52 @@
         }
 
         return Array.from(value);
+    }
+
+    function triggerTreeBulkAction(wire, surface, recordKey, action) {
+        const selection = resolveTreeBulkSelection(surface);
+
+        if (! selection || ! selection.selectedRecords.length) {
+            return;
+        }
+
+        setWireProperty(wire, 'selectedRecords', selection.selectedRecords);
+
+        callWire(wire, 'callTreeBulkAction', [
+            action,
+            selection.selectedRecords,
+        ]);
+
+        clearTreeSelection(surface);
+    }
+
+    function clearTreeSelection(surface) {
+        surface.querySelectorAll('.filament-tree-node-selected')
+            .forEach(function (node) {
+                node.classList.remove('filament-tree-node-selected');
+            });
+    }
+
+    function resolveTreeBulkSelection(surface) {
+        const selectedNodes = Array.from(
+            surface.querySelectorAll('.filament-tree-node.filament-tree-node-selected')
+        );
+
+        const selectedRecords = selectedNodes
+            .map(node => node.dataset.itemId)
+            .filter(Boolean);
+
+        return selectedRecords.length
+            ? { selectedRecords }
+            : null;
+    }
+
+    function syncTreeBulkSelection(wire, selection) {
+        // Direct assignment and also use set with live=true to force the update
+        setWireProperty(wire, 'selectedRecords', selection.selectedRecords);
+        // Also set directly on the Alpine reactive state
+        try { wire.selectedRecords = selection.selectedRecords; } catch(e) {}
+        try { wire.$set('selectedRecords', selection.selectedRecords, true); } catch(e) {}
     }
 
     function syncBulkSelection(wire, selection) {

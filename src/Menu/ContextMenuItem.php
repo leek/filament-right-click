@@ -102,14 +102,27 @@ class ContextMenuItem implements ContextMenuEntry
      */
     public function toPayload(): array
     {
+        $color = $this->color ?? $this->getActionColor();
+
         return array_filter([
             'type' => 'item',
             'action' => $this->action->getName(),
             'target' => $this->getTarget(),
             'label' => $this->getLabel(),
             'icon' => $this->getIconHtml(),
-            'color' => $this->color,
+            'color' => $color,
         ], fn (mixed $value): bool => $value !== null);
+    }
+
+    protected function getActionColor(): ?string
+    {
+        try {
+            $color = $this->action->getColor();
+
+            return is_string($color) ? $color : null;
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     protected function getTarget(): string
@@ -145,12 +158,18 @@ class ContextMenuItem implements ContextMenuEntry
 
     protected function getIconHtml(): ?string
     {
-        if (blank($this->icon)) {
+        try {
+            $icon = $this->icon ?? $this->action->getIcon();
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (blank($icon)) {
             return null;
         }
 
         return generate_icon_html(
-            $this->icon,
+            $icon,
             null,
             new ComponentAttributeBag(['class' => 'fi-right-click-menu-item-icon']),
             IconSize::Small,

@@ -98,6 +98,28 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
+}
+
+.fi-right-click-menu-item-shortcut {
+    flex: none;
+    margin-left: auto;
+    padding-left: 1.5rem;
+    color: rgb(161 161 170);
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+.dark .fi-right-click-menu-item-shortcut {
+    color: rgb(113 113 122);
+}
+
+.fi-right-click-menu-item:hover .fi-right-click-menu-item-shortcut {
+    color: inherit;
+}
+
+.dark .fi-right-click-menu-item:hover .fi-right-click-menu-item-shortcut {
+    color: inherit;
 }
 
 .fi-right-click-menu-item.fi-color-danger {
