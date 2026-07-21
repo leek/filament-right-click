@@ -3,7 +3,9 @@
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Panel;
+use Filament\Support\Colors\Color;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 use Leek\FilamentRightClick\FilamentRightClickPlugin;
 use Leek\FilamentRightClick\Macros\RegisterMacros;
 use Leek\FilamentRightClick\Menu\ContextMenuItem;
@@ -119,4 +121,29 @@ it('can explicitly target a bulk action', function (): void {
     expect($entry->toPayload())
         ->action->toBe('exportSelected')
         ->target->toBe('bulk');
+});
+
+it('inherits icon and color from the underlying action', function (): void {
+    $entry = ContextMenuItem::for(
+        Action::make('delete')
+            ->icon(new HtmlString('<svg data-icon="trash"></svg>'))
+            ->color('danger'),
+    );
+
+    expect($entry->toPayload())
+        ->color->toBe('danger')
+        ->icon->toContain('data-icon="trash"');
+});
+
+it('prefers explicit item color over the action color', function (): void {
+    $entry = ContextMenuItem::for(Action::make('delete')->color('danger'))
+        ->color('warning');
+
+    expect($entry->toPayload())->color->toBe('warning');
+});
+
+it('omits non-string action colors from the payload', function (): void {
+    $entry = ContextMenuItem::for(Action::make('delete')->color(Color::Red));
+
+    expect($entry->toPayload())->not->toHaveKey('color');
 });

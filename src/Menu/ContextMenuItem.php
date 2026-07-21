@@ -108,7 +108,7 @@ class ContextMenuItem implements ContextMenuEntry
             'target' => $this->getTarget(),
             'label' => $this->getLabel(),
             'icon' => $this->getIconHtml(),
-            'color' => $this->color,
+            'color' => $this->getColor(),
         ], fn (mixed $value): bool => $value !== null);
     }
 
@@ -143,14 +143,44 @@ class ContextMenuItem implements ContextMenuEntry
         return (string) str($this->action->getName())->headline();
     }
 
+    protected function getColor(): ?string
+    {
+        if (filled($this->color)) {
+            return $this->color;
+        }
+
+        try {
+            $color = $this->action->getColor();
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_string($color) ? $color : null;
+    }
+
+    protected function getIcon(): string|BackedEnum|Htmlable|null
+    {
+        if (filled($this->icon)) {
+            return $this->icon;
+        }
+
+        try {
+            return $this->action->getIcon();
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
     protected function getIconHtml(): ?string
     {
-        if (blank($this->icon)) {
+        $icon = $this->getIcon();
+
+        if (blank($icon)) {
             return null;
         }
 
         return generate_icon_html(
-            $this->icon,
+            $icon,
             null,
             new ComponentAttributeBag(['class' => 'fi-right-click-menu-item-icon']),
             IconSize::Small,
