@@ -506,10 +506,12 @@
         button.setAttribute('aria-haspopup', 'menu');
         button.setAttribute('aria-expanded', 'false');
 
+        // Trailing chevron marks a flyout parent. Width/height are on the SVG
+        // itself so the glyph stays visible even if package CSS loads late.
         const chevron = document.createElement('span');
         chevron.className = 'fi-right-click-menu-item-chevron';
         chevron.setAttribute('aria-hidden', 'true');
-        chevron.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" class="fi-right-click-menu-chevron-icon"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd"/></svg>';
+        chevron.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="16" height="16" fill="currentColor" class="fi-right-click-menu-chevron-icon" focusable="false"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd"/></svg>';
         button.appendChild(chevron);
 
         button._submenuEntry = entry;

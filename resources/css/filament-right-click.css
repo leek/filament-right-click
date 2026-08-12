@@ -135,24 +135,30 @@
 
 .fi-right-click-menu-item[data-submenu='true'] .fi-right-click-menu-item-label {
     flex: 1 1 auto;
+    min-width: 0;
 }
 
 .fi-right-click-menu-item-chevron {
     display: inline-flex;
-    flex: none;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
     margin-left: auto;
-    color: rgb(161 161 170);
+    width: 1rem;
+    height: 1rem;
+    /* Stronger than muted icon grey so "has submenu" is obvious at a glance. */
+    color: rgb(82 82 91);
 }
 
 .dark .fi-right-click-menu-item-chevron {
-    color: rgb(113 113 122);
+    color: rgb(212 212 216);
 }
 
 .fi-right-click-menu-chevron-icon {
+    display: block;
     width: 1rem;
     height: 1rem;
+    flex: none;
 }
 
 .fi-right-click-menu-item.fi-submenu-open,
