@@ -127,3 +127,45 @@
 .fi-right-click-menu-item.fi-color-info {
     color: rgb(3 105 161);
 }
+
+/* Submenu parent row: label grows, chevron pins to the trailing edge. */
+.fi-right-click-menu-item[data-submenu='true'] {
+    padding-right: 0.375rem;
+}
+
+.fi-right-click-menu-item[data-submenu='true'] .fi-right-click-menu-item-label {
+    flex: 1 1 auto;
+}
+
+.fi-right-click-menu-item-chevron {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    color: rgb(161 161 170);
+}
+
+.dark .fi-right-click-menu-item-chevron {
+    color: rgb(113 113 122);
+}
+
+.fi-right-click-menu-chevron-icon {
+    width: 1rem;
+    height: 1rem;
+}
+
+.fi-right-click-menu-item.fi-submenu-open,
+.fi-right-click-menu-item[data-submenu='true'][aria-expanded='true'] {
+    background: rgb(244 244 245);
+}
+
+.dark .fi-right-click-menu-item.fi-submenu-open,
+.dark .fi-right-click-menu-item[data-submenu='true'][aria-expanded='true'] {
+    background: rgb(39 39 42);
+}
+
+.fi-right-click-submenu {
+    /* Flyouts are separate fixed panels; reuse root menu chrome via .fi-right-click-menu. */
+    z-index: 10000;
+}

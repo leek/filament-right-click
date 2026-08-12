@@ -118,6 +118,51 @@ public function board(Board $board): Board
 
 Flowforge card context actions are registered with Filament's action cache, but they are not added to Flowforge's visible card action group. On click, the package calls Flowforge's native card action mounting path with the card's `recordKey`.
 
+### Nested submenus
+
+Use `ContextMenuSubmenu` for Linear-style flyouts. The parent row is **not** an action — it only opens a child menu. Nested leaf items still mount the same Filament action paths as top-level items. Submenus may nest further submenus, sections, separators, and items.
+
+```php
+use Filament\Actions\Action;
+use Filament\Support\Icons\Heroicon;
+use Leek\FilamentRightClick\Menu\ContextMenuItem;
+use Leek\FilamentRightClick\Menu\ContextMenuSeparator;
+use Leek\FilamentRightClick\Menu\ContextMenuSubmenu;
+
+->contextMenuCardActions([
+    ContextMenuSubmenu::make([
+        ContextMenuItem::for(Action::make('setStatusTodo')->action(...))
+            ->label('Todo')
+            ->icon(Heroicon::CircleStack),
+        ContextMenuItem::for(Action::make('setStatusDone')->action(...))
+            ->label('Done')
+            ->icon(Heroicon::CheckCircle),
+    ])
+        ->label('Status')
+        ->icon(Heroicon::Flag),
+
+    ContextMenuSubmenu::make([
+        ContextMenuItem::for(Action::make('setPriorityHigh')->action(...))
+            ->label('High')
+            ->color('warning'),
+        ContextMenuItem::for(Action::make('setPriorityLow')->action(...))
+            ->label('Low'),
+    ])
+        ->label('Priority')
+        ->icon(Heroicon::Signal),
+
+    ContextMenuSeparator::make(),
+
+    ContextMenuItem::for(Action::make('assign')->action(...))
+        ->label('Assign')
+        ->icon(Heroicon::UserPlus),
+]);
+```
+
+Keyboard: `ArrowRight` / `Enter` opens a submenu, `ArrowLeft` / `Escape` closes it, arrow keys move within the active panel. Pointer: hover or click the parent row to open the flyout; leaving parent + flyout closes it.
+
+`ContextMenuSection` remains an **inline** labeled group (children render in the same panel). Prefer `ContextMenuSubmenu` when the option list should stay off the root menu until requested.
+
 ### Trigger a workflow (Filament Workflow Engine)
 
 Because context menu items wrap native Filament actions, any action works — including the `TriggerWorkflowAction` shipped by [Filament Workflow Engine](https://filamentphp.com/plugins/leek-workflow-engine). If `leek/filament-workflows` is installed, drop it into a row menu to let users run a manual workflow against the right-clicked record:

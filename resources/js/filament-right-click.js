@@ -40,14 +40,17 @@
 
     const state = {
         activeIndex: -1,
+        activePanel: null,
         contextType: null,
         items: [],
         lastContext: null,
         menu: null,
         open: false,
+        openSubmenus: [],
         recordKey: null,
         surface: null,
         target: null,
+        submenuCloseTimer: null,
     };
 
     let listenersBound = false;
@@ -132,7 +135,11 @@
     }
 
     function handleDocumentClick(event) {
-        if (! state.open || state.menu.contains(event.target)) {
+        if (! state.open) {
+            return;
+        }
+
+        if (state.menu.contains(event.target) || state.openSubmenus.some(panel => panel.contains(event.target))) {
             return;
         }
 
@@ -171,6 +178,13 @@
     function handleOpenMenuKeyDown(event) {
         if (event.key === 'Escape') {
             event.preventDefault();
+
+            if (state.openSubmenus.length) {
+                closeDeepestSubmenu({ focusParent: true });
+
+                return;
+            }
+
             closeMenu();
 
             return;
@@ -199,19 +213,46 @@
 
         if (event.key === 'End') {
             event.preventDefault();
-            focusItem(getMenuButtons().length - 1);
+            focusItem(getPanelButtons().length - 1);
+
+            return;
+        }
+
+        if (event.key === 'ArrowRight') {
+            const button = getPanelButtons()[state.activeIndex];
+
+            if (button?.dataset.submenu === 'true') {
+                event.preventDefault();
+                openSubmenuFromButton(button, { focusFirst: true });
+            }
+
+            return;
+        }
+
+        if (event.key === 'ArrowLeft') {
+            if (state.openSubmenus.length) {
+                event.preventDefault();
+                closeDeepestSubmenu({ focusParent: true });
+            }
 
             return;
         }
 
         if (event.key === 'Enter' || event.key === ' ') {
-            const button = getMenuButtons()[state.activeIndex];
+            const button = getPanelButtons()[state.activeIndex];
 
             if (! button) {
                 return;
             }
 
             event.preventDefault();
+
+            if (button.dataset.submenu === 'true') {
+                openSubmenuFromButton(button, { focusFirst: true });
+
+                return;
+            }
+
             button.click();
         }
     }
@@ -366,7 +407,7 @@
                 return true;
             }
 
-            if (item.type === 'section') {
+            if (item.type === 'section' || item.type === 'submenu') {
                 return hasItems(item.items);
             }
 
@@ -377,12 +418,16 @@
     function openMenu({ context, items, x, y }) {
         const menu = ensureMenu();
 
+        clearSubmenuCloseTimer();
+        closeAllSubmenus();
+
         state.surface = context.surface;
         state.target = context.target;
         state.recordKey = context.recordKey;
         state.contextType = context.type;
-        state.items = flattenItems(items);
+        state.items = flattenLeafItems(items);
         state.activeIndex = -1;
+        state.activePanel = menu;
         state.open = true;
         state.lastContext = context;
 
@@ -401,12 +446,12 @@
         entries.forEach(entry => renderEntry(menu, entry));
     }
 
-    function renderEntry(menu, entry) {
+    function renderEntry(container, entry) {
         if (entry.type === 'separator') {
             const separator = document.createElement('div');
             separator.className = 'fi-right-click-menu-separator';
             separator.setAttribute('role', 'separator');
-            menu.appendChild(separator);
+            container.appendChild(separator);
 
             return;
         }
@@ -426,7 +471,13 @@
                 entry.items.forEach(item => renderEntry(section, item));
             }
 
-            menu.appendChild(section);
+            container.appendChild(section);
+
+            return;
+        }
+
+        if (entry.type === 'submenu') {
+            renderSubmenuParent(container, entry);
 
             return;
         }
@@ -435,13 +486,59 @@
             return;
         }
 
+        const button = createMenuButton(entry);
+        button.addEventListener('click', () => triggerItem(entry));
+        button.addEventListener('pointerenter', () => {
+            // Close sibling flyouts when hovering a plain leaf in the same panel.
+            closeSubmenusDeeperThan(container);
+        });
+
+        container.appendChild(button);
+    }
+
+    function renderSubmenuParent(container, entry) {
+        const button = createMenuButton({
+            ...entry,
+            action: null,
+        }, { isSubmenu: true });
+
+        button.dataset.submenu = 'true';
+        button.setAttribute('aria-haspopup', 'menu');
+        button.setAttribute('aria-expanded', 'false');
+
+        const chevron = document.createElement('span');
+        chevron.className = 'fi-right-click-menu-item-chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+        chevron.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" class="fi-right-click-menu-chevron-icon"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd"/></svg>';
+        button.appendChild(chevron);
+
+        button._submenuEntry = entry;
+        button._submenuParentPanel = container.closest('.fi-right-click-menu, .fi-right-click-submenu') || container;
+
+        button.addEventListener('pointerenter', () => {
+            clearSubmenuCloseTimer();
+            openSubmenuFromButton(button, { focusFirst: false });
+        });
+
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            openSubmenuFromButton(button, { focusFirst: true });
+        });
+
+        container.appendChild(button);
+    }
+
+    function createMenuButton(entry, { isSubmenu = false } = {}) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'fi-right-click-menu-item';
-        button.dataset.action = entry.action;
-        button.dataset.target = entry.target || 'record';
         button.setAttribute('role', 'menuitem');
         button.tabIndex = -1;
+
+        if (! isSubmenu && entry.action) {
+            button.dataset.action = entry.action;
+            button.dataset.target = entry.target || 'record';
+        }
 
         if (entry.color) {
             button.classList.add(`fi-color-${entry.color}`);
@@ -456,18 +553,214 @@
 
         const label = document.createElement('span');
         label.className = 'fi-right-click-menu-item-label';
-        label.textContent = entry.label || entry.action;
+        label.textContent = entry.label || entry.action || '';
         button.appendChild(label);
 
-        button.addEventListener('click', () => triggerItem(entry));
-
-        menu.appendChild(button);
+        return button;
     }
 
-    function flattenItems(entries) {
+    function openSubmenuFromButton(button, { focusFirst = false } = {}) {
+        const entry = button._submenuEntry;
+
+        if (! entry || ! Array.isArray(entry.items) || ! hasItems(entry.items)) {
+            return;
+        }
+
+        const parentPanel = button._submenuParentPanel || state.menu;
+
+        // Close any open flyouts that are not ancestors of this parent.
+        closeSubmenusDeeperThan(parentPanel);
+
+        // Re-open of the same parent: keep existing flyout.
+        const existing = state.openSubmenus.find(panel => panel._submenuParentButton === button);
+
+        if (existing) {
+            state.activePanel = existing;
+            button.setAttribute('aria-expanded', 'true');
+
+            if (focusFirst) {
+                focusItem(0);
+            }
+
+            return;
+        }
+
+        const flyout = document.createElement('div');
+        flyout.className = 'fi-right-click-menu fi-right-click-submenu';
+        flyout.setAttribute('role', 'menu');
+        flyout.setAttribute('aria-orientation', 'vertical');
+        flyout._submenuParentButton = button;
+        flyout._submenuParentPanel = parentPanel;
+
+        entry.items.forEach(item => renderEntry(flyout, item));
+
+        document.body.appendChild(flyout);
+        state.openSubmenus.push(flyout);
+        state.activePanel = flyout;
+        button.setAttribute('aria-expanded', 'true');
+        button.classList.add('fi-submenu-open');
+
+        positionSubmenu(flyout, button);
+
+        flyout.addEventListener('pointerenter', () => {
+            clearSubmenuCloseTimer();
+        });
+
+        flyout.addEventListener('pointerleave', event => {
+            scheduleSubmenuClose(event, flyout);
+        });
+
+        button.addEventListener('pointerleave', event => {
+            scheduleSubmenuClose(event, flyout);
+        }, { once: false });
+
+        if (focusFirst) {
+            focusItem(0);
+        }
+    }
+
+    function scheduleSubmenuClose(event, flyout) {
+        clearSubmenuCloseTimer();
+
+        const related = event.relatedTarget;
+
+        if (related instanceof Element) {
+            if (flyout.contains(related)) {
+                return;
+            }
+
+            if (flyout._submenuParentButton?.contains(related)) {
+                return;
+            }
+
+            // Moving into a deeper nested flyout that belongs to this one.
+            if (state.openSubmenus.some(panel => panel.contains(related) && isDescendantFlyout(panel, flyout))) {
+                return;
+            }
+        }
+
+        state.submenuCloseTimer = window.setTimeout(() => {
+            closeSubmenuAndDescendants(flyout, { focusParent: false });
+        }, 120);
+    }
+
+    function isDescendantFlyout(panel, ancestor) {
+        let current = panel._submenuParentPanel;
+
+        while (current) {
+            if (current === ancestor) {
+                return true;
+            }
+
+            current = current._submenuParentPanel;
+        }
+
+        return false;
+    }
+
+    function clearSubmenuCloseTimer() {
+        if (state.submenuCloseTimer !== null) {
+            window.clearTimeout(state.submenuCloseTimer);
+            state.submenuCloseTimer = null;
+        }
+    }
+
+    /**
+     * Keep only the open-flyout chain from the root menu up through `panel`.
+     * Sibling branches and any children of `panel` are closed so a newly opened
+     * submenu under `panel` does not stack on top of stale flyouts.
+     */
+    function closeSubmenusDeeperThan(panel) {
+        const path = [];
+        let current = panel;
+
+        while (current && current !== state.menu) {
+            if (state.openSubmenus.includes(current)) {
+                path.unshift(current);
+            }
+
+            current = current._submenuParentPanel;
+        }
+
+        state.openSubmenus.forEach(flyout => {
+            if (! path.includes(flyout)) {
+                destroyFlyout(flyout);
+            }
+        });
+
+        state.openSubmenus = path.filter(flyout => flyout.isConnected);
+        state.activePanel = state.openSubmenus[state.openSubmenus.length - 1] || state.menu;
+    }
+
+    function isAncestorPanel(possibleAncestor, panel) {
+        let current = panel?._submenuParentPanel;
+
+        while (current) {
+            if (current === possibleAncestor) {
+                return true;
+            }
+
+            current = current._submenuParentPanel;
+        }
+
+        return false;
+    }
+
+    function closeSubmenuAndDescendants(flyout, { focusParent = false } = {}) {
+        if (! flyout || ! flyout.isConnected) {
+            return;
+        }
+
+        const parentButton = flyout._submenuParentButton;
+        const parentPanel = flyout._submenuParentPanel || state.menu;
+
+        const doomed = state.openSubmenus.filter(panel => panel === flyout || isAncestorPanel(flyout, panel));
+
+        doomed.forEach(destroyFlyout);
+        state.openSubmenus = state.openSubmenus.filter(panel => ! doomed.includes(panel));
+        state.activePanel = state.openSubmenus[state.openSubmenus.length - 1] || state.menu;
+        state.activeIndex = -1;
+
+        if (focusParent && parentButton) {
+            state.activePanel = parentPanel;
+            const buttons = getPanelButtons();
+            const index = buttons.indexOf(parentButton);
+            focusItem(index >= 0 ? index : 0);
+        }
+    }
+
+    function closeDeepestSubmenu({ focusParent = false } = {}) {
+        const deepest = state.openSubmenus[state.openSubmenus.length - 1];
+
+        if (! deepest) {
+            return;
+        }
+
+        closeSubmenuAndDescendants(deepest, { focusParent });
+    }
+
+    function destroyFlyout(flyout) {
+        const parentButton = flyout._submenuParentButton;
+
+        if (parentButton) {
+            parentButton.setAttribute('aria-expanded', 'false');
+            parentButton.classList.remove('fi-submenu-open');
+        }
+
+        flyout.remove();
+    }
+
+    function closeAllSubmenus() {
+        clearSubmenuCloseTimer();
+        [...state.openSubmenus].forEach(destroyFlyout);
+        state.openSubmenus = [];
+        state.activePanel = state.menu;
+    }
+
+    function flattenLeafItems(entries) {
         return entries.flatMap(entry => {
-            if (entry.type === 'section') {
-                return flattenItems(entry.items || []);
+            if (entry.type === 'section' || entry.type === 'submenu') {
+                return flattenLeafItems(entry.items || []);
             }
 
             return entry.type === 'item' ? [entry] : [];
@@ -484,6 +777,40 @@
 
         menu.style.left = `${Math.max(8, left)}px`;
         menu.style.top = `${Math.max(8, top)}px`;
+    }
+
+    function positionSubmenu(flyout, parentButton) {
+        flyout.style.left = '0px';
+        flyout.style.top = '0px';
+        flyout.style.visibility = 'hidden';
+        flyout.hidden = false;
+
+        const parentRect = parentButton.getBoundingClientRect();
+        const rect = flyout.getBoundingClientRect();
+        const gap = 2;
+
+        let left = parentRect.right + gap;
+        let top = parentRect.top;
+
+        if (left + rect.width > window.innerWidth - 8) {
+            left = parentRect.left - rect.width - gap;
+        }
+
+        if (left < 8) {
+            left = 8;
+        }
+
+        if (top + rect.height > window.innerHeight - 8) {
+            top = window.innerHeight - rect.height - 8;
+        }
+
+        if (top < 8) {
+            top = 8;
+        }
+
+        flyout.style.left = `${left}px`;
+        flyout.style.top = `${top}px`;
+        flyout.style.visibility = '';
     }
 
     function triggerItem(item) {
@@ -704,7 +1031,7 @@
     }
 
     function focusRelativeItem(offset) {
-        const buttons = getMenuButtons();
+        const buttons = getPanelButtons();
 
         if (! buttons.length) {
             return;
@@ -716,7 +1043,7 @@
     }
 
     function focusItem(index) {
-        const buttons = getMenuButtons();
+        const buttons = getPanelButtons();
 
         if (! buttons.length) {
             return;
@@ -726,8 +1053,20 @@
         buttons[state.activeIndex]?.focus();
     }
 
-    function getMenuButtons() {
-        return Array.from(state.menu?.querySelectorAll('.fi-right-click-menu-item') || []);
+    function getPanelButtons() {
+        const panel = state.activePanel || state.menu;
+
+        if (! panel) {
+            return [];
+        }
+
+        // Only direct menu items in this panel (not nested flyout items that
+        // happen to still be in the DOM under a different panel).
+        return Array.from(panel.querySelectorAll('.fi-right-click-menu-item')).filter(button => {
+            const owner = button.closest('.fi-right-click-menu, .fi-right-click-submenu');
+
+            return owner === panel;
+        });
     }
 
     function closeMenu() {
@@ -735,8 +1074,11 @@
             return;
         }
 
+        closeAllSubmenus();
+
         state.menu.hidden = true;
         state.menu.classList.remove('fi-open');
+        state.menu.innerHTML = '';
         state.open = false;
         state.contextType = null;
         state.surface = null;
@@ -744,6 +1086,7 @@
         state.recordKey = null;
         state.items = [];
         state.activeIndex = -1;
+        state.activePanel = null;
     }
 
     window.FilamentRightClick = {

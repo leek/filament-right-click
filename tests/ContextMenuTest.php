@@ -11,6 +11,7 @@ use Leek\FilamentRightClick\Macros\RegisterMacros;
 use Leek\FilamentRightClick\Menu\ContextMenuItem;
 use Leek\FilamentRightClick\Menu\ContextMenuSection;
 use Leek\FilamentRightClick\Menu\ContextMenuSeparator;
+use Leek\FilamentRightClick\Menu\ContextMenuSubmenu;
 use Leek\FilamentRightClick\Tests\Fixtures\FakeTableComponent;
 
 it('encodes items sections and separators for the browser menu', function (): void {
@@ -146,4 +147,79 @@ it('omits non-string action colors from the payload', function (): void {
     $entry = ContextMenuItem::for(Action::make('delete')->color(Color::Red));
 
     expect($entry->toPayload())->not->toHaveKey('color');
+});
+
+it('encodes nested submenus without a parent action and registers nested leaf actions', function (): void {
+    FilamentRightClickPlugin::make()->register(Panel::make());
+
+    $entries = [
+        ContextMenuSubmenu::make([
+            ContextMenuItem::for(Action::make('setStatusTodo'))->label('Todo'),
+            ContextMenuSection::make([
+                ContextMenuItem::for(Action::make('setStatusDone'))->label('Done'),
+            ])->label('Closed'),
+            ContextMenuSubmenu::make([
+                ContextMenuItem::for(Action::make('setStatusBlocked'))->label('Blocked'),
+            ])->label('More statuses')->icon(new HtmlString('<svg data-icon="status"></svg>')),
+        ])
+            ->label('Status')
+            ->icon(new HtmlString('<svg data-icon="circle"></svg>')),
+        ContextMenuSeparator::make(),
+        ContextMenuItem::for(Action::make('assign'))->label('Assign'),
+    ];
+
+    $payload = json_decode(base64_decode(RegisterMacros::encodeConfig($entries)), associative: true);
+
+    expect($payload['items'][0])
+        ->type->toBe('submenu')
+        ->label->toBe('Status')
+        ->not->toHaveKey('action')
+        ->icon->toContain('data-icon="circle"')
+        ->items->toHaveCount(3);
+
+    expect($payload['items'][0]['items'][0])
+        ->type->toBe('item')
+        ->action->toBe('setStatusTodo')
+        ->label->toBe('Todo');
+
+    expect($payload['items'][0]['items'][1])
+        ->type->toBe('section')
+        ->label->toBe('Closed')
+        ->items->{0}->action->toBe('setStatusDone');
+
+    expect($payload['items'][0]['items'][2])
+        ->type->toBe('submenu')
+        ->label->toBe('More statuses')
+        ->not->toHaveKey('action')
+        ->items->{0}->action->toBe('setStatusBlocked');
+
+    expect($payload['items'][2]['action'])->toBe('assign');
+
+    // Nested leaf actions must still land in the action cache (table path).
+    $table = Table::make(new FakeTableComponent)
+        ->columns([])
+        ->contextMenuActions($entries);
+
+    expect($table->hasAction('setStatusTodo'))->toBeTrue();
+    expect($table->hasAction('setStatusDone'))->toBeTrue();
+    expect($table->hasAction('setStatusBlocked'))->toBeTrue();
+    expect($table->hasAction('assign'))->toBeTrue();
+    expect($table->getRecordActions())->toBeEmpty();
+
+    // Parent submenu contributes no action of its own.
+    expect(ContextMenuSubmenu::make([
+        ContextMenuItem::for(Action::make('leaf')),
+    ])->label('Parent')->toPayload())->not->toHaveKey('action');
+});
+
+it('rejects bulk actions nested inside a submenu in a record menu', function (): void {
+    FilamentRightClickPlugin::make()->register(Panel::make());
+
+    expect(fn () => Table::make(new FakeTableComponent)
+        ->columns([])
+        ->contextMenuActions([
+            ContextMenuSubmenu::make([
+                ContextMenuItem::forBulkAction(BulkAction::make('deleteSelected')),
+            ])->label('Danger'),
+        ]))->toThrow(InvalidArgumentException::class, 'Use contextMenuBulkActions()');
 });

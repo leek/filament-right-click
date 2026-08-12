@@ -274,7 +274,8 @@ class RegisterMacros
             throw new InvalidArgumentException($message);
         }
 
-        if (($payload['type'] ?? null) !== 'section') {
+        // Sections (inline groups) and submenus (flyouts) both nest child entries.
+        if (! in_array($payload['type'] ?? null, ['section', 'submenu'], true)) {
             return;
         }
 
