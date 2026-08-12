@@ -172,6 +172,7 @@
             items: context.config.items,
             x: rect.left + 16,
             y: rect.top + Math.min(rect.height - 8, 24),
+            paintActive: true,
         });
     }
 
@@ -415,7 +416,7 @@
         });
     }
 
-    function openMenu({ context, items, x, y }) {
+    function openMenu({ context, items, x, y, paintActive = false }) {
         const menu = ensureMenu();
 
         clearSubmenuCloseTimer();
@@ -437,7 +438,9 @@
         menu.classList.add('fi-open');
 
         positionMenu(menu, x, y);
-        focusItem(0);
+        // Pointer open: focus for a11y without painting. Keyboard open (ContextMenu /
+        // Shift+F10): paint so the active row is obvious immediately.
+        focusItem(0, { paint: paintActive });
     }
 
     function renderMenu(menu, entries) {
@@ -491,6 +494,7 @@
         button.addEventListener('pointerenter', () => {
             // Close sibling flyouts when hovering a plain leaf in the same panel.
             closeSubmenusDeeperThan(container);
+            paintActiveButton(button);
         });
 
         container.appendChild(button);
@@ -519,11 +523,13 @@
 
         button.addEventListener('pointerenter', () => {
             clearSubmenuCloseTimer();
+            paintActiveButton(button);
             openSubmenuFromButton(button, { focusFirst: false });
         });
 
         button.addEventListener('click', event => {
             event.preventDefault();
+            paintActiveButton(button);
             openSubmenuFromButton(button, { focusFirst: true });
         });
 
@@ -1041,10 +1047,10 @@
 
         const nextIndex = (state.activeIndex + offset + buttons.length) % buttons.length;
 
-        focusItem(nextIndex);
+        focusItem(nextIndex, { paint: true });
     }
 
-    function focusItem(index) {
+    function focusItem(index, { paint = true } = {}) {
         const buttons = getPanelButtons();
 
         if (! buttons.length) {
@@ -1052,7 +1058,39 @@
         }
 
         state.activeIndex = Math.max(0, Math.min(index, buttons.length - 1));
-        buttons[state.activeIndex]?.focus();
+
+        buttons.forEach(button => button.classList.remove('fi-active'));
+
+        const button = buttons[state.activeIndex];
+
+        if (paint && button) {
+            button.classList.add('fi-active');
+        }
+
+        button?.focus({ preventScroll: true });
+    }
+
+    function paintActiveButton(button) {
+        if (! (button instanceof Element)) {
+            return;
+        }
+
+        const panel = button.closest('.fi-right-click-menu, .fi-right-click-submenu');
+
+        if (panel) {
+            state.activePanel = panel;
+        }
+
+        const buttons = getPanelButtons();
+        const index = buttons.indexOf(button);
+
+        if (index < 0) {
+            return;
+        }
+
+        state.activeIndex = index;
+        buttons.forEach(item => item.classList.remove('fi-active'));
+        button.classList.add('fi-active');
     }
 
     function getPanelButtons() {

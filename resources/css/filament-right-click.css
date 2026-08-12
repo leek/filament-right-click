@@ -70,14 +70,22 @@
     cursor: default;
 }
 
+/* Highlight only on real hover / keyboard selection / open flyout parent —
+   never on :focus alone. Right-click open focuses the first row for a11y, and
+   that used to leave submenu parents looking permanently hovered. */
 .fi-right-click-menu-item:hover,
-.fi-right-click-menu-item:focus {
+.fi-right-click-menu-item.fi-active,
+.fi-right-click-menu-item.fi-submenu-open {
     background: rgb(244 244 245);
+}
+
+.fi-right-click-menu-item:focus {
     outline: none;
 }
 
 .dark .fi-right-click-menu-item:hover,
-.dark .fi-right-click-menu-item:focus {
+.dark .fi-right-click-menu-item.fi-active,
+.dark .fi-right-click-menu-item.fi-submenu-open {
     background: rgb(39 39 42);
 }
 
@@ -159,16 +167,6 @@
     width: 1rem;
     height: 1rem;
     flex: none;
-}
-
-.fi-right-click-menu-item.fi-submenu-open,
-.fi-right-click-menu-item[data-submenu='true'][aria-expanded='true'] {
-    background: rgb(244 244 245);
-}
-
-.dark .fi-right-click-menu-item.fi-submenu-open,
-.dark .fi-right-click-menu-item[data-submenu='true'][aria-expanded='true'] {
-    background: rgb(39 39 42);
 }
 
 .fi-right-click-submenu {
