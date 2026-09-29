@@ -25,6 +25,8 @@ class ContextMenuItem implements ContextMenuEntry
 
     protected ?string $target = null;
 
+    protected ?string $mirrors = null;
+
     public function __construct(protected Action $action) {}
 
     public static function for(Action $action): static
@@ -70,6 +72,23 @@ class ContextMenuItem implements ContextMenuEntry
         return $this;
     }
 
+    /**
+     * The table row action this entry mirrors: the browser hides the entry on
+     * rows that do not render that action (hidden for the record, not
+     * authorized), so one menu payload per table still fits every row.
+     */
+    public function mirrors(?string $action): static
+    {
+        $this->mirrors = $action;
+
+        return $this;
+    }
+
+    public function getMirrors(): ?string
+    {
+        return $this->mirrors;
+    }
+
     public function record(): static
     {
         $this->target = 'record';
@@ -109,6 +128,7 @@ class ContextMenuItem implements ContextMenuEntry
             'label' => $this->getLabel(),
             'icon' => $this->getIconHtml(),
             'color' => $this->getColor(),
+            'mirrors' => $this->mirrors,
         ], fn (mixed $value): bool => $value !== null);
     }
 

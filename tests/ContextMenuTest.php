@@ -41,6 +41,22 @@ it('encodes items sections and separators for the browser menu', function (): vo
         ->items->{2}->color->toBe('danger');
 });
 
+it('carries the mirrored row action so the browser can hide the entry per row', function (): void {
+    $entries = [
+        ContextMenuItem::for(Action::make('contextViewManual'))
+            ->label('Open manual')
+            ->mirrors('viewManual'),
+        ContextMenuItem::for(Action::make('contextEdit'))
+            ->label('Edit'),
+    ];
+
+    $payload = json_decode(base64_decode(RegisterMacros::encodeConfig($entries)), associative: true);
+
+    expect($payload)
+        ->items->{0}->mirrors->toBe('viewManual')
+        ->items->{1}->not->toHaveKey('mirrors');
+});
+
 it('registers wrapped actions as context-only table actions', function (): void {
     FilamentRightClickPlugin::make()->register(Panel::make());
 
