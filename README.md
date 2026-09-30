@@ -98,8 +98,6 @@ The menu is one payload per table, so an entry cannot evaluate `->visible()` for
 
 Separators left dangling by hidden entries are dropped, and a section or submenu whose entries are all hidden disappears with them.
 
-Per-row hiding needs Filament 5.6.4 or later, the first release that keys rendered actions by name. On older versions `mirrors()` has no effect and the entry shows on every row.
-
 ### Flowforge cards
 
 If `relaticle/flowforge` is installed, the plugin also registers a `contextMenuCardActions()` macro on Flowforge boards:
@@ -266,7 +264,7 @@ Bulk actions are still server-enforced by Filament. Hidden, disabled, and unauth
 
 ## Compatibility
 
-This package targets Filament v4 and v5.
+This package requires Filament 5.6.4 or later. For Filament v4, install the 1.x line: `composer require leek/filament-right-click:^1.5`.
 
 Flowforge support is optional and is registered only when `Relaticle\Flowforge\Board` exists.
 
