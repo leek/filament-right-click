@@ -13,6 +13,7 @@ use Leek\FilamentRightClick\Menu\ContextMenuSection;
 use Leek\FilamentRightClick\Menu\ContextMenuSeparator;
 use Leek\FilamentRightClick\Menu\ContextMenuSubmenu;
 use Leek\FilamentRightClick\Tests\Fixtures\FakeTableComponent;
+use Leek\FilamentRightClick\Tests\Fixtures\PreKeyedActionsContextMenuItem;
 
 it('encodes items sections and separators for the browser menu', function (): void {
     $entries = [
@@ -55,6 +56,15 @@ it('carries the mirrored row action so the browser can hide the entry per row', 
     expect($payload)
         ->items->{0}->mirrors->toBe('viewManual')
         ->items->{1}->not->toHaveKey('mirrors');
+});
+
+it('drops the mirrored row action on Filament versions that do not key rendered actions', function (): void {
+    $payload = json_decode(base64_decode(RegisterMacros::encodeConfig([
+        PreKeyedActionsContextMenuItem::for(Action::make('contextViewManual'))
+            ->mirrors('viewManual'),
+    ])), associative: true);
+
+    expect($payload)->items->{0}->not->toHaveKey('mirrors');
 });
 
 it('registers wrapped actions as context-only table actions', function (): void {

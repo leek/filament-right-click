@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Leek\FilamentRightClick\Menu;
 
 use BackedEnum;
+use Composer\InstalledVersions;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Support\Enums\IconSize;
@@ -76,6 +77,9 @@ class ContextMenuItem implements ContextMenuEntry
      * The table row action this entry mirrors: the browser hides the entry on
      * rows that do not render that action (hidden for the record, not
      * authorized), so one menu payload per table still fits every row.
+     *
+     * Filament renders the `<component>.actions.<name>.<hash>` key the browser
+     * looks for since v5.6.4. On older versions the entry shows on every row.
      */
     public function mirrors(?string $action): static
     {
@@ -128,8 +132,21 @@ class ContextMenuItem implements ContextMenuEntry
             'label' => $this->getLabel(),
             'icon' => $this->getIconHtml(),
             'color' => $this->getColor(),
-            'mirrors' => $this->mirrors,
+            'mirrors' => static::filamentKeysRenderedActions() ? $this->mirrors : null,
         ], fn (mixed $value): bool => $value !== null);
+    }
+
+    protected static function filamentKeysRenderedActions(): bool
+    {
+        $version = InstalledVersions::isInstalled('filament/actions')
+            ? InstalledVersions::getVersion('filament/actions')
+            : null;
+
+        if (blank($version) || str_starts_with($version, 'dev-')) {
+            return true;
+        }
+
+        return version_compare($version, '5.6.4', '>=');
     }
 
     protected function getTarget(): string

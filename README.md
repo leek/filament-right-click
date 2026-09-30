@@ -98,6 +98,8 @@ The menu is one payload per table, so an entry cannot evaluate `->visible()` for
 
 Separators left dangling by hidden entries are dropped, and a section or submenu whose entries are all hidden disappears with them.
 
+Per-row hiding needs Filament 5.6.4 or later, the first release that keys rendered actions by name. On older versions `mirrors()` has no effect and the entry shows on every row.
+
 ### Flowforge cards
 
 If `relaticle/flowforge` is installed, the plugin also registers a `contextMenuCardActions()` macro on Flowforge boards:
