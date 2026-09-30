@@ -76,6 +76,28 @@ The wrapped actions are registered as table actions, but they are not rendered i
 
 Bulk actions are registered as table bulk actions without rendering in the normal bulk action dropdown. When the right-clicked row is already selected, the bulk menu uses the current Filament selection, including select-all-across-pages state. When the right-clicked row is not selected, the single-record menu opens instead.
 
+### Hiding entries per row
+
+The menu is one payload per table, so an entry cannot evaluate `->visible()` for the record under the cursor. Tell the entry which row action it mirrors instead — the browser hides it on rows that do not render that action (hidden for the record, not authorized), because Filament keys every rendered action by name:
+
+```php
+->recordActions([
+    Action::make('viewManual')
+        ->visible(fn (Equipment $record): bool => filled($record->manual))
+        ->url(fn (Equipment $record): string => $record->manualUrl()),
+])
+->contextMenuActions([
+    ContextMenuItem::for(
+        Action::make('contextViewManual')
+            ->url(fn (Equipment $record): string => $record->manualUrl())
+    )
+        ->label('Open manual')
+        ->mirrors('viewManual'),
+])
+```
+
+Separators left dangling by hidden entries are dropped, and a section or submenu whose entries are all hidden disappears with them.
+
 ### Flowforge cards
 
 If `relaticle/flowforge` is installed, the plugin also registers a `contextMenuCardActions()` macro on Flowforge boards:

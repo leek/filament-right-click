@@ -109,7 +109,9 @@
             return;
         }
 
-        if (! hasItems(context.config.items)) {
+        const items = visibleItems(context);
+
+        if (! hasItems(items)) {
             return;
         }
 
@@ -118,7 +120,7 @@
 
         openMenu({
             context,
-            items: context.config.items,
+            items,
             x: event.clientX,
             y: event.clientY,
         });
@@ -158,8 +160,9 @@
         }
 
         const context = resolveContext(event.target) || state.lastContext;
+        const items = context ? visibleItems(context) : [];
 
-        if (! context || ! hasItems(context.config.items)) {
+        if (! context || ! hasItems(items)) {
             return;
         }
 
@@ -169,7 +172,7 @@
 
         openMenu({
             context,
-            items: context.config.items,
+            items,
             x: rect.left + 16,
             y: rect.top + Math.min(rect.height - 8, 24),
             paintActive: true,
@@ -400,6 +403,69 @@
         } catch (error) {
             return null;
         }
+    }
+
+    // Entries that mirror a row action (`mirrors` in the payload) only show on
+    // rows that render that action: Filament keys every rendered action
+    // `<component>.actions.<name>.<hash>`, and a hidden or unauthorized action
+    // is not rendered at all — so the row itself says what it can do.
+    function visibleItems(context) {
+        return pruneSeparators(filterMirrored(context.config.items, context));
+    }
+
+    function filterMirrored(items, context) {
+        if (! Array.isArray(items)) {
+            return [];
+        }
+
+        return items.reduce((kept, item) => {
+            if (item.type === 'item' && item.mirrors && ! rowRendersAction(context, item.mirrors)) {
+                return kept;
+            }
+
+            if (item.type === 'section' || item.type === 'submenu') {
+                const children = pruneSeparators(filterMirrored(item.items, context));
+
+                if (hasItems(children)) {
+                    kept.push({ ...item, items: children });
+                }
+
+                return kept;
+            }
+
+            kept.push(item);
+
+            return kept;
+        }, []);
+    }
+
+    function rowRendersAction(context, action) {
+        if (context.type !== 'table' || ! context.target) {
+            return true;
+        }
+
+        const needle = `.actions.${action}.`;
+
+        return Array.from(context.target.querySelectorAll('[wire\\:key]'))
+            .some(element => (element.getAttribute('wire:key') || '').includes(needle));
+    }
+
+    function pruneSeparators(items) {
+        const result = [];
+
+        items.forEach(item => {
+            if (item.type === 'separator' && (result.length === 0 || result[result.length - 1].type === 'separator')) {
+                return;
+            }
+
+            result.push(item);
+        });
+
+        while (result.length > 0 && result[result.length - 1].type === 'separator') {
+            result.pop();
+        }
+
+        return result;
     }
 
     function hasItems(items) {
