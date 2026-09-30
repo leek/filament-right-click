@@ -410,7 +410,17 @@
     // `<component>.actions.<name>.<hash>`, and a hidden or unauthorized action
     // is not rendered at all — so the row itself says what it can do.
     function visibleItems(context) {
-        return pruneSeparators(filterMirrored(context.config.items, context));
+        const items = context.config.items;
+
+        if (context.type !== 'table' || ! context.target || ! hasMirrored(items)) {
+            return items;
+        }
+
+        return pruneSeparators(filterMirrored(items, context));
+    }
+
+    function hasMirrored(items) {
+        return Array.isArray(items) && items.some(item => item.mirrors || hasMirrored(item.items));
     }
 
     function filterMirrored(items, context) {
@@ -440,10 +450,6 @@
     }
 
     function rowRendersAction(context, action) {
-        if (context.type !== 'table' || ! context.target) {
-            return true;
-        }
-
         const needle = `.actions.${action}.`;
 
         return Array.from(context.target.querySelectorAll('[wire\\:key]'))
