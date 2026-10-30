@@ -140,6 +140,31 @@ public function board(Board $board): Board
 
 Flowforge card context actions are registered with Filament's action cache, but they are not added to Flowforge's visible card action group. On click, the package calls Flowforge's native card action mounting path with the card's `recordKey`.
 
+### Per-record visible and disabled entries
+
+When the server already knows which entries apply to each row or card, put that on the row or card element itself. The menu keeps only the listed actions and renders the disabled ones greyed out with their reason as a tooltip:
+
+```blade
+<div
+    data-filament-right-click-visible-actions="edit,renew,cancel"
+    data-filament-right-click-disabled-actions='@json(["cancel" => "The cycle still needs this request."])'
+>
+```
+
+Both attributes are optional. A disabled entry does nothing when clicked, and the action still refuses to mount on the server.
+
+### Menu button
+
+Any element with `data-filament-right-click-trigger` inside a configured row or card opens the same menu on click, anchored under the element. Use it to replace a per-row action dropdown with a single button, so the row no longer renders every action's markup:
+
+```blade
+<button type="button" data-filament-right-click-trigger aria-haspopup="menu" aria-label="More actions">
+    <x-filament::icon icon="heroicon-m-ellipsis-vertical" class="size-5" />
+</button>
+```
+
+The menu opens right-aligned under the button, like Filament's action dropdowns; set `data-filament-right-click-trigger="start"` to align it left. The click is handled in the capture phase, so it works inside rows and cards that stop their own click events. Clicking the button again closes the menu.
+
 ### Nested submenus
 
 Use `ContextMenuSubmenu` for Linear-style flyouts. The parent row is **not** an action — it only opens a child menu. Nested leaf items still mount the same Filament action paths as top-level items. Submenus may nest further submenus, sections, separators, and items.
@@ -217,6 +242,7 @@ The action opens Workflow Engine's own modal, filtered to manual workflows confi
 - The browser context menu is only suppressed for rows in tables with configured right-click actions.
 - `ContextMenu` keyboard key and `Shift+F10` open the menu for the focused or last-hovered row.
 - `Escape` closes the menu, arrow keys move through items, and `Enter` / `Space` trigger the focused item.
+- A `data-filament-right-click-trigger` button opens the menu on click or `Enter` / `Space`; a keyboard open highlights the first item.
 - Touch and long-press gestures are intentionally not included in v1.
 
 ## Static menu, server-enforced actions

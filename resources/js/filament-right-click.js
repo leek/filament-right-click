@@ -33,6 +33,7 @@
         '[data-filament-right-click-config]',
     ].join(',');
     const configuredFlowforgeBoardSelector = '[data-filament-right-click-flowforge-card-config]';
+    const triggerSelector = '[data-filament-right-click-trigger]';
     const configuredSurfaceSelector = [
         configuredTableSelector,
         configuredFlowforgeBoardSelector,
@@ -50,6 +51,7 @@
         recordKey: null,
         surface: null,
         target: null,
+        trigger: null,
         submenuCloseTimer: null,
     };
 
@@ -74,6 +76,7 @@
         }
 
         document.addEventListener('contextmenu', handleContextMenu);
+        document.addEventListener('click', handleTriggerClick, true);
         document.addEventListener('pointerover', rememberRow);
         document.addEventListener('focusin', rememberRow);
         document.addEventListener('click', handleDocumentClick);
@@ -126,6 +129,60 @@
         });
     }
 
+    // A trigger button inside a row or card (a "…" menu) opens the same menu,
+    // anchored under the button. Capture phase: rows and cards often stop
+    // their clicks from bubbling.
+    function handleTriggerClick(event) {
+        const trigger = event.target instanceof Element ? event.target.closest(triggerSelector) : null;
+
+        if (! trigger) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (state.open && state.trigger === trigger) {
+            closeMenu();
+
+            return;
+        }
+
+        const context = resolveContext(trigger);
+        const items = context ? visibleItems(context) : [];
+
+        if (! context || ! hasItems(items)) {
+            return;
+        }
+
+        const rect = trigger.getBoundingClientRect();
+
+        // Right-aligned under the button by default, like Filament's own
+        // action dropdowns; `data-filament-right-click-trigger="start"` aligns left.
+        const alignStart = trigger.getAttribute('data-filament-right-click-trigger') === 'start';
+
+        openMenu({
+            context,
+            items,
+            x: alignStart ? rect.left : rect.right,
+            y: rect.bottom + 4,
+            // Enter or Space on the button reports no pointer position.
+            paintActive: event.detail === 0,
+            trigger,
+            alignEnd: ! alignStart,
+        });
+    }
+
+    // The last-hovered row may have been morphed since (a new menu payload,
+    // new per-row state), so read it again rather than trusting the snapshot.
+    function refreshContext(context) {
+        if (! context?.target?.isConnected) {
+            return null;
+        }
+
+        return resolveContext(context.target) || null;
+    }
+
     function rememberRow(event) {
         const context = resolveContext(event.target);
 
@@ -159,7 +216,7 @@
             return;
         }
 
-        const context = resolveContext(event.target) || state.lastContext;
+        const context = resolveContext(event.target) || refreshContext(state.lastContext);
         const items = context ? visibleItems(context) : [];
 
         if (! context || ! hasItems(items)) {
@@ -410,13 +467,87 @@
     // `<component>.actions.<name>.<hash>`, and a hidden or unauthorized action
     // is not rendered at all — so the row itself says what it can do.
     function visibleItems(context) {
-        const items = context.config.items;
+        let items = context.config.items;
 
-        if (context.type !== 'table' || ! context.target || ! hasMirrored(items)) {
+        if (context.type === 'table' && context.target && hasMirrored(items)) {
+            items = pruneSeparators(filterMirrored(items, context));
+        }
+
+        return applyTargetState(items, context.target);
+    }
+
+    // A row or card may say which entries it allows and which are disabled:
+    // `data-filament-right-click-visible-actions` lists the action names to
+    // keep, and `data-filament-right-click-disabled-actions` maps names to the
+    // reason they cannot run (or null). The server knows both per record;
+    // the menu payload is one per surface.
+    function applyTargetState(items, target) {
+        if (! (target instanceof Element)) {
             return items;
         }
 
-        return pruneSeparators(filterMirrored(items, context));
+        const visible = target.hasAttribute('data-filament-right-click-visible-actions')
+            ? new Set((target.getAttribute('data-filament-right-click-visible-actions') || '').split(',').filter(Boolean))
+            : null;
+        const disabled = parseDisabledActions(target.getAttribute('data-filament-right-click-disabled-actions'));
+
+        if (! visible && ! disabled) {
+            return items;
+        }
+
+        return pruneSeparators(filterTargetState(items, visible, disabled));
+    }
+
+    function parseDisabledActions(encoded) {
+        if (! encoded) {
+            return null;
+        }
+
+        try {
+            const parsed = JSON.parse(encoded);
+
+            return parsed && typeof parsed === 'object' && ! Array.isArray(parsed) ? parsed : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function filterTargetState(items, visible, disabled) {
+        if (! Array.isArray(items)) {
+            return [];
+        }
+
+        return items.reduce((kept, item) => {
+            if (item.type === 'item') {
+                if (visible && ! visible.has(item.action)) {
+                    return kept;
+                }
+
+                if (disabled && Object.prototype.hasOwnProperty.call(disabled, item.action)) {
+                    kept.push({ ...item, disabled: true, disabledReason: disabled[item.action] || null });
+
+                    return kept;
+                }
+
+                kept.push(item);
+
+                return kept;
+            }
+
+            if (item.type === 'section' || item.type === 'submenu') {
+                const children = pruneSeparators(filterTargetState(item.items, visible, disabled));
+
+                if (hasItems(children)) {
+                    kept.push({ ...item, items: children });
+                }
+
+                return kept;
+            }
+
+            kept.push(item);
+
+            return kept;
+        }, []);
     }
 
     function hasMirrored(items) {
@@ -488,7 +619,7 @@
         });
     }
 
-    function openMenu({ context, items, x, y, paintActive = false }) {
+    function openMenu({ context, items, x, y, paintActive = false, trigger = null, alignEnd = false }) {
         const menu = ensureMenu();
 
         clearSubmenuCloseTimer();
@@ -504,12 +635,20 @@
         state.open = true;
         state.lastContext = context;
 
+        if (state.trigger && state.trigger !== trigger) {
+            state.trigger.setAttribute('aria-expanded', 'false');
+        }
+
+        state.trigger = trigger;
+
+        trigger?.setAttribute('aria-expanded', 'true');
+
         renderMenu(menu, items);
 
         menu.hidden = false;
         menu.classList.add('fi-open');
 
-        positionMenu(menu, x, y);
+        positionMenu(menu, x, y, { alignEnd });
         // Pointer open: focus for a11y without painting. Keyboard open (ContextMenu /
         // Shift+F10): paint so the active row is obvious immediately.
         focusItem(0, { paint: paintActive });
@@ -562,7 +701,11 @@
         }
 
         const button = createMenuButton(entry);
-        button.addEventListener('click', () => triggerItem(entry));
+        button.addEventListener('click', () => {
+            if (! entry.disabled) {
+                triggerItem(entry);
+            }
+        });
         button.addEventListener('pointerenter', () => {
             // Close sibling flyouts when hovering a plain leaf in the same panel.
             closeSubmenusDeeperThan(container);
@@ -622,6 +765,15 @@
 
         if (entry.color) {
             button.classList.add(`fi-color-${entry.color}`);
+        }
+
+        if (entry.disabled) {
+            button.classList.add('fi-disabled');
+            button.setAttribute('aria-disabled', 'true');
+
+            if (entry.disabledReason) {
+                button.title = entry.disabledReason;
+            }
         }
 
         if (entry.icon) {
@@ -847,12 +999,12 @@
         });
     }
 
-    function positionMenu(menu, x, y) {
+    function positionMenu(menu, x, y, { alignEnd = false } = {}) {
         menu.style.left = '0px';
         menu.style.top = '0px';
 
         const rect = menu.getBoundingClientRect();
-        const left = Math.min(x, window.innerWidth - rect.width - 8);
+        const left = Math.min(alignEnd ? x - rect.width : x, window.innerWidth - rect.width - 8);
         const top = Math.min(y, window.innerHeight - rect.height - 8);
 
         menu.style.left = `${Math.max(8, left)}px`;
@@ -1199,6 +1351,9 @@
         state.items = [];
         state.activeIndex = -1;
         state.activePanel = null;
+
+        state.trigger?.setAttribute('aria-expanded', 'false');
+        state.trigger = null;
     }
 
     window.FilamentRightClick = {
